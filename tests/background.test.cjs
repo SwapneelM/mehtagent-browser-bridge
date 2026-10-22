@@ -14,16 +14,26 @@ function event() {
 function setup() {
   const calls = [];
   const replies = [];
-  const port = { onMessage: event(), onDisconnect: event(), postMessage: m => replies.push(m), disconnect() {} };
+  let storedPolicy=null;
+  const port = { onMessage: event(), onDisconnect: event(), postMessage: m => {
+    if(m.type==='policy_update') {
+      const doc=m.operation.migrate || m.operation.replace || {...storedPolicy.policy};
+      if(m.operation.site) {doc.sites={...doc.sites}; if(m.operation.site.mode===null) delete doc.sites[m.operation.site.origin];else doc.sites[m.operation.site.origin]=m.operation.site.mode;}
+      if(m.operation.preferences) doc.preferences={...doc.preferences,...m.operation.preferences};
+      storedPolicy={path:'/synthetic/browser-policy.json',revision:crypto.randomUUID(),policy:doc};
+      setImmediate(()=>port.onMessage.emit({type:'policy_result',id:m.id,...storedPolicy}));
+    } else replies.push(m);
+  }, disconnect() {} };
   const tabs = new Map([[11, { id: 11, windowId: 1, title: 'A', url: 'https://example.com/', active: true, status: 'complete' }],
                         [12, { id: 12, windowId: 1, title: 'B', url: 'https://example.com/', active: false, status: 'complete' }]]);
   let focused = true;
   let granted = true;
   let rules = {"https://example.com":"allow","https://example.org":"allow"};
+  let preferences={background:true,showCursor:true};
   const chrome = {
     runtime: { id: 'test', getURL:p=>'chrome-extension://test/'+p, connectNative: () => port, onMessage: event(), getPlatformInfo: async () => ({ os: 'mac' }) },
     action: { setBadgeText() {}, setBadgeBackgroundColor() {} },
-    storage: {local:{get:async()=>({siteRules: rules}),set:async data=>{if(data.siteRules) rules=data.siteRules;},setAccessLevel:async()=>{} }},
+    storage: {local:{get:async()=>({siteRules: rules,preferences}),set:async data=>{if(data.siteRules) rules=data.siteRules;if(data.preferences)preferences=data.preferences;},setAccessLevel:async()=>{} }},
     permissions: {contains:async()=>granted,remove:async()=>true},
     scripting: {executeScript:async options=>{calls.push(['script',options]);return [{result:{ok:true,result:'page A'}}];}},
     tabs: { onRemoved: event(), query: async () => [...tabs.values()],
@@ -41,8 +51,10 @@ function setup() {
   const ctx = vm.createContext({ chrome, console, URL, setTimeout, clearTimeout, Date, crypto, SitePolicy:policy, importScripts(){} });
   vm.runInContext(fs.readFileSync(path.join(__dirname, '../extension/background.js'), 'utf8'), ctx);
   vm.runInContext('connect()', ctx);
-  port.onMessage.emit({ type: 'ready', session: 's1', connection: 'b_1', epoch: 'e_1' });
+  storedPolicy={path:'/synthetic/browser-policy.json',revision:'initial',policy:{version:1,sites:rules,preferences}};
+  port.onMessage.emit({ type: 'ready', session: 's1', connection: 'b_1', epoch: 'e_1',policy:storedPolicy });
   async function command(payload, expires = Date.now() / 1000 + 10) {
+    await vm.runInContext('policySync',ctx);
     const id = String(replies.length);
     port.onMessage.emit({ type: 'command', id, expires, command: payload });
     await vm.runInContext('queue', ctx);
@@ -56,7 +68,8 @@ test('new tab means a new ID even when another tab has the same URL', async () =
   const reply = await s.command({ action: 'open', url: 'https://example.com/' });
   assert.equal(reply.result.id, 99);
   assert.equal(s.calls.filter(c => c[0] === 'create').length, 1);
-  assert.equal(s.calls.find(c => c[0] === 'create')[1].active, true);
+  assert.equal(s.calls.find(c => c[0] === 'create')[1].active, false);
+  assert.equal(s.calls.filter(c=>c[0]==='window').length,0);
 });
 
 test('actions use the exact tab ID, not a matching URL', async () => {
@@ -104,12 +117,12 @@ test('browser pages, private tabs and non-web URLs are rejected', async () => {
 });
 
 test('unlisted and revoked sites cannot be read, opened or revealed in tabs',async()=>{
-  const s=setup();s.setRules({});
+  const s=setup();await vm.runInContext('policySync',s.ctx);s.setRules({});
   assert.equal((await s.command({action:'read',tab:11})).ok,false);
   assert.equal((await s.command({action:'open',url:'https://example.com/'})).ok,false);
   assert.deepEqual((await s.command({action:'tabs'})).result,[]);
   assert.equal(s.calls.length,0);
-  s.setRules({'https://example.com':'allow'});s.revoke();
+  await vm.runInContext('policySync',s.ctx);s.setRules({'https://example.com':'allow'});s.revoke();
   assert.equal((await s.command({action:'read',tab:11})).ok,false);
 });
 
@@ -121,7 +134,7 @@ test('raw eval, CDP, screenshots and keys have no escape hatch',async()=>{
 });
 
 test('approval binds one command to the agent, tab and URL and is not reusable',async()=>{
- const s=setup();s.setRules({'https://example.com':'ask'});
+ const s=setup();await vm.runInContext('policySync',s.ctx);s.setRules({'https://example.com':'ask'});
  const pending=s.command({action:'read',tab:12,_bridge:{connection:'b_1',epoch:'e_1',agent:'agent-b'}});
  await new Promise(resolve=>setImmediate(resolve));
  const state=vm.runInContext('status()',s.ctx);
@@ -134,14 +147,14 @@ test('approval binds one command to the agent, tab and URL and is not reusable',
 });
 
 test('navigation during approval fails before page access',async()=>{
- const s=setup();s.setRules({'https://example.com':'ask'});
+ const s=setup();await vm.runInContext('policySync',s.ctx);s.setRules({'https://example.com':'ask'});
  const pending=s.command({action:'click',tab:11,selector:'#go'});await new Promise(resolve=>setImmediate(resolve));
  s.tabs.get(11).url='https://chase.com/';vm.runInContext('approvalWaiter(true)',s.ctx);
  assert.equal((await pending).not_run,true);assert.equal(s.calls.length,0);
 });
 
 test('disconnect cancels waiting approval and ignores old native commands',async()=>{
- const s=setup();s.setRules({'https://example.com':'ask'});
+ const s=setup();await vm.runInContext('policySync',s.ctx);s.setRules({'https://example.com':'ask'});
  const pending=s.command({action:'read',tab:11});await new Promise(resolve=>setImmediate(resolve));
  await vm.runInContext('disconnect()',s.ctx);await pending;
  await s.command({action:'open',url:'https://example.com/'});assert.equal(s.calls.length,0);
@@ -157,13 +170,13 @@ test('policy rejects credential URLs, insecure sites, subdomains, payment/login 
 });
 
 test('metadata hides Ask sites from bulk tab listing',async()=>{
- const s=setup();s.setRules({'https://example.com':'ask'});
+ const s=setup();await vm.runInContext('policySync',s.ctx);s.setRules({'https://example.com':'ask'});
  assert.deepEqual((await s.command({action:'tabs'})).result,[]);
 });
 
 
 test('redirect to Ask destination requires approval before revealing metadata',async()=>{
- const s=setup();s.setRules({'https://example.com':'allow','https://example.org':'ask'});
+ const s=setup();await vm.runInContext('policySync',s.ctx);s.setRules({'https://example.com':'allow','https://example.org':'ask'});
  s.chrome.tabs.create=async()=>{const t={id:99,windowId:1,status:'complete',url:'https://example.org/private',title:'PRIVATE'};s.tabs.set(99,t);return t;};
  const pending=s.command({action:'open',url:'https://example.com/redirect'});
  await new Promise(resolve=>setImmediate(resolve));
@@ -180,15 +193,15 @@ test('Allow to Ask edit during authorization cancels the old permission decision
 
 test('fixed click refuses protected links and form destinations',()=>{
  const s=setup();let clicks=0;
- const link={href:'https://example.com/checkout',disabled:false,readOnly:false,getClientRects:()=>[{}],scrollIntoView(){},getBoundingClientRect:()=>({x:0,y:0,width:10,height:10}),contains:()=>false,closest:()=>link,click(){clicks++;}};
+ const link={href:'https://example.com/checkout',disabled:false,readOnly:false,getAttribute:()=>null,ownerDocument:null,getClientRects:()=>[{}],scrollIntoView(){},getBoundingClientRect:()=>({x:0,y:0,width:10,height:10}),contains:()=>false,closest:s=>s.startsWith('[hidden]')?null:link,click(){clicks++;}};
  s.ctx.location={href:'https://example.com/',origin:'https://example.com'};
- s.ctx.document={querySelector:()=>null,querySelectorAll:()=>[link],elementFromPoint:()=>link};s.ctx.getComputedStyle=()=>({visibility:'visible'});
+ s.ctx.document={querySelector:()=>null,querySelectorAll:()=>[link],elementFromPoint:()=>link};s.ctx.document.defaultView={getComputedStyle:()=>({visibility:'visible'})};s.ctx.document.elementFromPoint=s.ctx.document.elementFromPoint;const target=s.ctx.document.querySelectorAll()[0];target.ownerDocument=s.ctx.document;
  assert.match(vm.runInContext("pageAction('https://example.com/','click',{selector:'#buy'},Date.now()+1000)",s.ctx).error,/blocked/);
  assert.equal(clicks,0);
 });
 
 test('approval shows navigation destination and all relevant command parameters',async()=>{
- const s=setup();s.setRules({'https://example.com':'ask'});
+ const s=setup();await vm.runInContext('policySync',s.ctx);s.setRules({'https://example.com':'ask'});
  const pending=s.command({action:'navigate',tab:11,url:'https://example.com/delete?confirm=true'});
  await new Promise(resolve=>setImmediate(resolve));
  assert.equal(vm.runInContext('pendingApproval.details.url',s.ctx),'https://example.com/delete?confirm=true');
@@ -200,8 +213,8 @@ test('form overrides, external form associations and nested spans cannot reach c
  for(const nested of [false,true]) {
   const s=setup();let clicks=0;
   const control={type:'submit',form:{action:'https://example.com/safe'},hasAttribute:()=>true,formAction:'https://example.com/checkout'};
-  const e={disabled:false,readOnly:false,getClientRects:()=>[{}],scrollIntoView(){},getBoundingClientRect:()=>({x:0,y:0,width:10,height:10}),contains:()=>false,closest:selector=>selector==='a[href]'?null:control,click(){clicks++;}};
-  s.ctx.location={href:'https://example.com/',origin:'https://example.com'};s.ctx.document={querySelector:()=>null,querySelectorAll:()=>[e],elementFromPoint:()=>e};s.ctx.getComputedStyle=()=>({visibility:'visible'});
+  const e={disabled:false,readOnly:false,getAttribute:()=>null,ownerDocument:null,getClientRects:()=>[{}],scrollIntoView(){},getBoundingClientRect:()=>({x:0,y:0,width:10,height:10}),contains:()=>false,closest:selector=>selector.startsWith('[hidden]') || selector==='a[href]'?null:control,click(){clicks++;}};
+  s.ctx.location={href:'https://example.com/',origin:'https://example.com'};s.ctx.document={querySelector:()=>null,querySelectorAll:()=>[e],elementFromPoint:()=>e};s.ctx.document.defaultView={getComputedStyle:()=>({visibility:'visible'})};s.ctx.document.elementFromPoint=s.ctx.document.elementFromPoint;const target=s.ctx.document.querySelectorAll()[0];target.ownerDocument=s.ctx.document;
   const result=vm.runInContext("pageAction('https://example.com/','click',{selector:'#buy'},Date.now()+1000)",s.ctx);
   assert.equal(result.ok,false);assert.match(result.error,/blocked/);assert.equal(clicks,0);
  }
@@ -215,9 +228,89 @@ test('injected function checks deadline and exact document before touching DOM',
 
 
 test('navigation rechecks source tab after waiting for destination approval',async()=>{
- const s=setup();s.setRules({'https://example.com':'allow','https://example.org':'ask'});
+ const s=setup();await vm.runInContext('policySync',s.ctx);s.setRules({'https://example.com':'allow','https://example.org':'ask'});
  const pending=s.command({action:'navigate',tab:11,url:'https://example.org/'});await new Promise(resolve=>setImmediate(resolve));
  assert.equal(vm.runInContext('pendingApproval.url',s.ctx),'https://example.org/');
  s.tabs.get(11).url='https://chase.com/';vm.runInContext('approvalWaiter(true)',s.ctx);
  const reply=await pending;assert.equal(reply.ok,false);assert.equal(reply.not_run,true);assert.equal(s.calls.filter(c=>c[0]==='update').length,0);
+});
+
+test('foreground open is explicit; read and click never focus a browser window',async()=>{
+ const s=setup();await s.command({action:'open',url:'https://example.com/',foreground:true});
+ assert.equal(s.calls.find(c=>c[0]==='create')[1].active,true);
+ assert.equal(s.calls.filter(c=>c[0]==='window').length,1);
+ s.calls.length=0;await s.command({action:'read',tab:12});await s.command({action:'click',tab:12,selector:'#ok'});
+ assert.equal(s.calls.filter(c=>c[0]==='window' || c[0]==='update').length,0);
+});
+
+test('invalid or missing shared policy fails closed and cancels pending approval',async()=>{
+ const s=setup();await vm.runInContext('policySync',s.ctx);s.setRules({'https://example.com':'ask'});
+ const pending=s.command({action:'read',tab:11});await new Promise(resolve=>setImmediate(resolve));
+ s.port.onMessage.emit({type:'policy',path:'/synthetic/policy.json',policy:null,revision:null,error:'Invalid local policy'});
+ const reply=await pending;assert.equal(reply.ok,false);assert.equal(s.calls.length,0);
+ assert.equal((await s.command({action:'read',tab:11})).not_run,true);
+});
+
+test('policy document rejects unknown preferences and matches native protected-host list',()=>{
+ for(const preferences of [null,{'__proto__':true},JSON.parse('{"__proto__":true}'),{showCursor:1},{debugger:true}]) {
+  // The object literal __proto__ key does not create an own field in JavaScript.
+  if(preferences && Object.keys(preferences).length===0)continue;
+  assert.throws(()=>policy.document({version:1,sites:{},preferences}));
+ }
+ assert.deepEqual(policy.blockedHosts,JSON.parse(fs.readFileSync(path.join(__dirname,'../extension/protected-hosts.json'))));
+ assert.equal(policy.website('docs.google.com/document/d/example?foo=bar','allow').origin,'https://docs.google.com');
+ assert.throws(()=>policy.website('docs.google.com/billing','allow'),/blocked/);
+ assert.equal(policy.document({version:1,sites:{}}).preferences.background,true);
+});
+
+
+test('revocation while preferences load cannot dispatch a page action or new tab',async()=>{
+ for(const action of ['read','click','open']) {
+  const s=setup();await vm.runInContext('policySync',s.ctx);
+  const get=s.chrome.storage.local.get;
+  s.chrome.storage.local.get=async keys=>{
+   const data=await get(keys);
+   if(keys==='preferences')vm.runInContext('policyRevision++;policyReady=false',s.ctx);
+   return data;
+  };
+  const reply=await s.command({action,tab:11,selector:'#ok',url:'https://example.com/'});
+  assert.equal(reply.ok,false,action);assert.equal(reply.not_run,true,action);assert.equal(s.calls.length,0,action);
+ }
+});
+
+
+test('a policy update blocks open before its asynchronous storage write finishes',async()=>{
+ const s=setup();await vm.runInContext('policySync',s.ctx);
+ const get=s.chrome.storage.local.get;let revoking=false,release;
+ const held=new Promise(resolve=>{release=resolve;});
+ s.chrome.storage.local.get=async keys=>{
+  if(keys==='siteRules' && revoking)await held;
+  const data=await get(keys);
+  if(keys==='preferences') {
+   revoking=true;
+   s.port.onMessage.emit({type:'policy',path:'/synthetic/policy.json',revision:'revoked',policy:{version:1,sites:{}}});
+   await new Promise(resolve=>setImmediate(resolve));
+  }
+  return data;
+ };
+ try {
+  const reply=await s.command({action:'open',url:'https://example.com/'});
+  assert.equal(reply.ok,false);assert.equal(reply.not_run,true);assert.equal(s.calls.length,0);
+ } finally {release();await vm.runInContext('policySync',s.ctx);}
+});
+
+test('reconnect cannot silently recreate a previously established deleted policy',async()=>{
+ const s=setup();await vm.runInContext('policySync',s.ctx);
+ s.chrome.storage.local.get=async()=>({siteRules:{'https://example.com':'allow'},sharedPolicy:{policy:{version:1,sites:{'https://example.com':'allow'}}}});
+ await assert.rejects(vm.runInContext("initializePolicy({path:'/synthetic/policy.json',policy:null,revision:null})",s.ctx),/removed/);
+ assert.equal(vm.runInContext('policyReady',s.ctx),false);
+});
+
+
+test('local policy anchor keeps settings authorized while website senders stay excluded',async()=>{
+ const s=setup();await vm.runInContext('policySync',s.ctx);
+ const reply=await new Promise(resolve=>s.chrome.runtime.onMessage.emit({type:'rules'},{id:'test',url:'chrome-extension://test/options.html#policy-heading'},resolve));
+ assert.equal(reply.policyReady,true);assert.equal(reply.rules['https://example.com'],'allow');
+ let called=false;s.chrome.runtime.onMessage.emit({type:'rules'},{id:'test',url:'https://example.com/options.html#policy-heading'},()=>{called=true;});
+ await new Promise(resolve=>setImmediate(resolve));assert.equal(called,false);
 });

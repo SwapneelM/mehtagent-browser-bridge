@@ -3,6 +3,7 @@
 import argparse
 import json
 import os
+from pathlib import Path
 import struct
 import sys
 import threading
@@ -10,6 +11,7 @@ import time
 import uuid
 
 from bridge import DEFAULT_STATE, acquire, claim, connect, extension_id, register_connection, validate_target
+from policy_store import default_path, snapshot as policy_snapshot, update as update_policy
 
 MAX_INBOUND = 64 * 1024 * 1024
 MAX_OUTBOUND = 1024 * 1024
@@ -48,7 +50,7 @@ def write_message(stream, value):
     stream.flush()
 
 
-def serve(state):
+def serve(state, policy_file=None):
     session = uuid.uuid4().hex
     stop = threading.Event()
     identified = threading.Event()
@@ -56,10 +58,28 @@ def serve(state):
     output_lock = threading.Lock()
     inflight = set()
     inflight_lock = threading.Lock()
+    policy_file = Path(policy_file) if policy_file else (default_path() if Path(state) == DEFAULT_STATE else Path(state).parent / "browser-policy.json")
+    policy_lock = threading.RLock()
+    last_policy = [None]
 
     def send(value):
         with output_lock:
             write_message(sys.stdout.buffer, value)
+
+    def current_policy():
+        try:
+            return policy_snapshot(policy_file)
+        except (OSError, ValueError, UnicodeError):
+            return {"path": str(policy_file), "policy": None, "revision": None,
+                    "error": "Local policy is invalid or unreadable; fix the file before continuing"}
+
+    def publish_policy():
+        with policy_lock:
+            value = current_policy()
+            signature = json.dumps(value, sort_keys=True)
+            if signature != last_policy[0]:
+                send({"type": "policy", **value})
+                last_policy[0] = signature
 
     def finish(db, msg):
         record = db.execute("SELECT * FROM journal WHERE id=? AND session=?",
@@ -108,6 +128,7 @@ def serve(state):
                     db.execute("UPDATE connections SET heartbeat=? WHERE id=? AND session=?",
                                (time.time(), identity["id"], session))
                     db.execute("INSERT OR REPLACE INTO sessions VALUES (?, ?)", (session, time.time()))
+                publish_policy()
                 with inflight_lock:
                     busy = bool(inflight)
                 if busy:
@@ -179,8 +200,21 @@ def serve(state):
             if msg.get("type") == "identify" and not identified.is_set():
                 identity.update(id=msg["connection"], epoch=msg["epoch"])
                 register_connection(db, identity["id"], identity["epoch"], session, msg.get("label", ""))
-                send({"type": "ready", "session": session, "connection": identity["id"], "epoch": identity["epoch"]})
+                with policy_lock:
+                    value = current_policy()
+                    last_policy[0] = json.dumps(value, sort_keys=True)
+                    send({"type": "ready", "session": session, "connection": identity["id"], "epoch": identity["epoch"],
+                          "policy": value})
                 identified.set()
+            elif msg.get("type") == "policy_update" and identified.is_set():
+                with policy_lock:
+                    try:
+                        value = update_policy(policy_file, msg.get("revision"), msg.get("operation"))
+                        last_policy[0] = json.dumps(value, sort_keys=True)
+                        send({"type": "policy_result", "id": msg.get("id"), **value})
+                    except (OSError, ValueError, UnicodeError):
+                        send({"type": "policy_result", "id": msg.get("id"), **current_policy(),
+                              "error": "Policy edit refused: the file changed, is invalid, or cannot be written. Refresh and review before retrying."})
             elif msg.get("type") == "response":
                 finish(db, msg)
     finally:
@@ -192,11 +226,12 @@ def serve(state):
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--state-dir", default=str(DEFAULT_STATE))
+    parser.add_argument("--policy-file", help="Shared local browser policy JSON; defaults to the user config directory")
     parser.add_argument("origin")
     args = parser.parse_args()
     if args.origin != "chrome-extension://" + extension_id() + "/":
         parser.error("Unrecognized extension origin")
-    serve(args.state_dir)
+    serve(args.state_dir, args.policy_file)
 
 
 if __name__ == "__main__":

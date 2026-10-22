@@ -11,6 +11,7 @@ import time
 import uuid
 
 from bridge import DEFAULT_STATE, connect, connections, recover, validate_target
+from policy_store import MAX_BYTES, default_path as default_policy_path, decode as decode_policy, snapshot as policy_snapshot
 
 
 def request(command, state=DEFAULT_STATE, session=None, timeout=30, agent=None,
@@ -110,6 +111,9 @@ def main():
     parser.add_argument("--request-id", help="Unique operation ID; repeated IDs are never executed again")
     parser.add_argument("--timeout", type=float, default=30)
     sub = parser.add_subparsers(dest="action", required=True)
+    p = sub.add_parser("policy", help="Read or validate the same local policy used by every agent")
+    p.add_argument("operation", choices=["show", "validate", "example"], nargs="?", default="show")
+    p.add_argument("file", nargs="?", help="Policy path; MEHTAGENT_BROWSER_POLICY overrides the default")
     sub.add_parser("status")
     sub.add_parser("tabs")
     sub.add_parser("current")
@@ -117,7 +121,7 @@ def main():
     p = sub.add_parser("claim"); p.add_argument("tab", type=int)
     p = sub.add_parser("release"); p.add_argument("target")
     p = sub.add_parser("resolve"); p.add_argument("operation"); p.add_argument("outcome", choices=["completed", "not-run"])
-    p = sub.add_parser("open"); p.add_argument("url")
+    p = sub.add_parser("open"); p.add_argument("url"); p.add_argument("--foreground", action="store_true", help="Explicitly activate the new tab and its window")
     for action in ["activate", "close", "read", "screenshot", "eval", "navigate", "click", "type", "key", "scroll", "upload", "cdp"]:
         p = sub.add_parser(action)
         p.add_argument("tab", help="Owned t_ target ID from open or claim")
@@ -125,7 +129,17 @@ def main():
             p.add_argument("output"); p.add_argument("--full-page", action="store_true")
         if action == "eval": p.add_argument("expression")
         if action == "navigate": p.add_argument("url")
-        if action in ["click", "type", "upload"]: p.add_argument("selector")
+        if action in ["click", "type", "upload"]: p.add_argument("selector", **({"nargs":"?"} if action=="click" else {}))
+        if action in ("read", "scroll"): p.add_argument("--selector", help="CSS selector; use ' >>> ' to enter an open shadow root or same-origin frame")
+        if action in ("read", "click"):
+            p.add_argument("--role", help="Exact DOM/ARIA role")
+            p.add_argument("--name", help="Exact DOM accessible name")
+        if action == "read":
+            p.add_argument("--offset", type=int, default=0)
+            p.add_argument("--limit", type=int, default=20000)
+            p.add_argument("--element-offset", type=int, default=0)
+            p.add_argument("--element-limit", type=int, default=180)
+            p.add_argument("--html", action="store_true", help="Include bounded sanitized HTML")
         if action == "type":
             p.add_argument("text"); p.add_argument("--append", action="store_true")
         if action == "key":
@@ -137,6 +151,17 @@ def main():
         if action == "cdp":
             p.add_argument("method"); p.add_argument("params", nargs="?", default="{}")
     args = parser.parse_args()
+    if args.action == "policy":
+        policy_path = Path(args.file).expanduser() if args.file else default_policy_path()
+        if args.operation == "example":
+            print((Path(__file__).parent / "browser-policy.example.json").read_text())
+        elif args.operation == "validate":
+            with policy_path.open("rb") as stream:
+                document = decode_policy(stream.read(MAX_BYTES + 1))
+            print(json.dumps({"valid": True, "policy": document}, indent=2))
+        else:
+            print(json.dumps(policy_snapshot(policy_path), indent=2))
+        return
     if args.action in ("status", "recover", "release", "resolve"):
         db = connect(args.state_dir)
         try:

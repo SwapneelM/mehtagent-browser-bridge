@@ -17,6 +17,7 @@ jobs:
       - run: node --test tests/*.test.cjs
       - run: python3 -m pip install playwright==1.58.0
       - run: python3 -m playwright install chromium
+      - run: npm ci --ignore-scripts --no-audit --no-fund
       - run: python3 tests/e2e.py --output /tmp/browser-bridge-evidence
       - uses: actions/upload-artifact@v4
         if: always()

@@ -1,0 +1,16 @@
+{
+  "version": 1,
+  "sites": {
+    "https://www.google.com": "allow",
+    "https://drive.google.com": "allow",
+    "https://docs.google.com": "allow",
+    "https://colab.research.google.com": "ask",
+    "https://mail.google.com": "ask",
+    "https://calendar.google.com": "ask",
+    "https://github.com": "ask"
+  },
+  "preferences": {
+    "background": true,
+    "showCursor": true
+  }
+}

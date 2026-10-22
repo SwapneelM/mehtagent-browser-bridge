@@ -21,3 +21,10 @@
 | extension/approval.js | 2026-10-21 | current | Full-command review and one-command approve/deny UI. |
 
 | tests/popup.test.cjs |2026-10-22|current| Actual popup handler checks for settings opening, visible errors and stale manifests. |
+
+| policy_store.py |2026-10-22|current| Shared JSON validation, per-user paths, private atomic writes and revision conflict checks. |
+| browser-policy.schema.json, browser-policy.example.json |2026-10-22|current| Versioned policy contract and optional generic starter choices. |
+| extension/options.css |2026-10-22|current| Larger settings controls, contained site list and mobile policy route. |
+| extension/protected-hosts.json |2026-10-22|current| Native policy validation host list, checked against the browser policy list. |
+| tests/test_policy_store.py, tests/test_policy_native.py |2026-10-22|current| Policy validation, concurrency, migration, native sharing and invalid-file regressions. |
+| package.json, package-lock.json |2026-10-22|current| Pinned official Monaco development fixture; no extension runtime dependency. |

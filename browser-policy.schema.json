@@ -1,0 +1,45 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/SwapneelM/mehtagent-browser-bridge/main/browser-policy.schema.json",
+  "title": "Mehtagent browser policy",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "version",
+    "sites"
+  ],
+  "properties": {
+    "version": {
+      "const": 1
+    },
+    "sites": {
+      "type": "object",
+      "maxProperties": 200,
+      "propertyNames": {
+        "type": "string",
+        "format": "uri"
+      },
+      "additionalProperties": {
+        "enum": [
+          "allow",
+          "ask",
+          "block"
+        ]
+      }
+    },
+    "preferences": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "background": {
+          "type": "boolean",
+          "default": true
+        },
+        "showCursor": {
+          "type": "boolean",
+          "default": true
+        }
+      }
+    }
+  }
+}

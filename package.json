@@ -1,0 +1,7 @@
+{
+  "name": "mehtagent-browser-bridge-tests",
+  "private": true,
+  "version": "0.4.0",
+  "description": "Pinned synthetic editor fixture for browser integration tests",
+  "devDependencies": { "monaco-editor": "0.52.2" }
+}

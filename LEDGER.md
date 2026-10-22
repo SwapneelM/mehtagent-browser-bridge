@@ -48,3 +48,13 @@ Validation before commit:18Python24Node tests pass. Realextension suite38checks 
 Files: extension/popup.js/options.js/manifest.json; bridge.py/native_host.py; tests/popup.test.cjs/test_bridge.py/e2e.py; .github/workflows/checks.yml; README.md/TESTING.md/FILEMAP.md/pluginversion. Scoped independent review addresses worker traceback gap; no private page data or course datasets are published in this bridge repo.
 
 FinalBrave38checks passed after worker-error sanitizer; independent review reproduces type-only fatal worker exit. Private task logs remain outside this public repository.
+
+## 2026-10-22 — v0.4 shared policy and background DOM actions
+
+Added a shared versioned local JSON policy with strict validation, private atomic writes, revision conflicts, external change watching and one-time migration of existing extension rules. Browser consent remains separate; file edits never grant new hosts. Added common-site buttons, access controls, Remove/Undo, policy import preview/export and missing-consent actions.
+
+New tabs open in the background by default. Fixed commands support scoped/paginated DOM text, sanitized HTML, DOM/ARIA names, pointer events, open shadow roots, same-origin frames, nested scroll and a pinned-fixture-tested Monaco textarea adapter. Optional virtual cursor labels the agent/action without focus, OS pointer movement or screenshots. Existing exact-origin denial, protected pages, agent ownership and recovery behavior remain enforced.
+
+Verification before commit:27 Python tests,31 Node tests,75 actual extension/native-host checks each in isolated headless Chromium and Brave. Includes0/4/200site settings layouts, import/export, invalid policy failure/recovery, focus preservation, DOM/editor actions and cursor preference. Independent review found two revocation races; fixed before action dispatch and covered by actual asynchronous harness tests. Settings hash navigation is authorized without accepting website senders. git diff --check clean; private path/session/course-ID marker scan clean. No screenshots generated or retained by the suite.
+
+Limits: browser-native new-host prompt acceptance/decline remains manual; headless tests pregrant only copied fixture hosts. Monaco fixture success is not a guarantee for signed-in Google editors. Native installer support remains macOS; other OS installation is unverified. Agent/tool/OS logs remain outside the bridge's control.

@@ -28,6 +28,37 @@ const SitePolicy = (() => {
     if (hardBlock(value)) return "block";
     return rules[url(value).origin] || "block";
   }
-  return { url, hardBlock, entry, mode, blockedHosts };
+  const defaults = {background:true,showCursor:true};
+  function document(value) {
+    if(!value || typeof value!=="object" || Array.isArray(value) || Object.keys(value).some(k=>!["version","sites","preferences"].includes(k))) throw new Error("Unknown policy fields");
+    if(value.version!==1) throw new Error("Unsupported policy version; expected 1");
+    if(!value.sites || typeof value.sites!=="object" || Array.isArray(value.sites) || Object.keys(value.sites).length>200) throw new Error("Policy must contain at most 200 exact sites");
+    const sites={};
+    for(const [origin,access] of Object.entries(value.sites)) {
+      const rule=entry(origin,access);
+      if(rule.origin!==origin) throw new Error("Policy sites must use canonical exact origins without paths or default ports");
+      sites[origin]=access;
+    }
+    const prefs=value.preferences === undefined ? {} : value.preferences;
+    if(!prefs || typeof prefs!=="object" || Array.isArray(prefs) || Object.entries(prefs).some(([k,v])=>!Object.hasOwn(defaults,k) || typeof v!=="boolean")) throw new Error("Unknown or invalid policy preferences");
+    return {version:1,sites,preferences:{...defaults,...prefs}};
+  }
+  function website(value, access) {
+    const raw=value.trim();
+    const parsed=url(/^[a-z][a-z0-9+.-]*:\/\//i.test(raw) ? raw : "https://"+raw);
+    const blocked=hardBlock(parsed.href);
+    if(access!=="block" && blocked) throw new Error(blocked);
+    return entry(parsed.origin,access);
+  }
+  const suggestions=[
+    {name:"Google Search",origin:"https://www.google.com",mode:"allow"},
+    {name:"Drive",origin:"https://drive.google.com",mode:"allow"},
+    {name:"Docs, Sheets & Slides",origin:"https://docs.google.com",mode:"allow"},
+    {name:"Colab",origin:"https://colab.research.google.com",mode:"ask"},
+    {name:"Gmail",origin:"https://mail.google.com",mode:"ask"},
+    {name:"Calendar",origin:"https://calendar.google.com",mode:"ask"},
+    {name:"GitHub",origin:"https://github.com",mode:"ask"}
+  ];
+  return { url, hardBlock, entry, mode, blockedHosts, defaults, document, website, suggestions };
 })();
 if (typeof module !== "undefined") module.exports = SitePolicy;

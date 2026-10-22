@@ -6,3 +6,5 @@ tests/__pycache__/
 dist/
 *.sqlite3*
 *.log
+
+node_modules/

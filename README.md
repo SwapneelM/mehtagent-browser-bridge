@@ -20,8 +20,8 @@ Then, in the **browser profile you want the agent to use**:
 
 1. Open `chrome://extensions` in Chrome or `brave://extensions` in Brave.
 2. Enable **Developer mode**, click **Load unpacked**, and select this repository's `extension` folder.
-3. Open **Local Browser Bridge**, choose **Site permissions**, and enter an exact website origin with Allow or Ask every command. Accept the browser’s site-consent prompt. No sites are granted initially.
-4. Click **Connect**. The badge shows **ON** when the native host is ready; **ASK** means a command needs your decision in the popup or Site permissions page.
+3. Open **Local Browser Bridge** and click **Connect**. No sites are granted initially.
+4. Choose **Site permissions**, click a common-site suggestion or paste a website URL, and choose Allow or Ask every command. Accept the browser’s site-consent prompt. The badge shows **ON** when the native host is ready; **ASK** means a command needs your decision in the popup or Site permissions page.
 
 The browser extension must be loaded manually. Installing the agent plugin does not grant browser access by itself. The Chrome Web Store release is pending; use this repository or the [release download](https://github.com/SwapneelM/mehtagent-browser-bridge/releases/latest).
 
@@ -29,7 +29,7 @@ Keep the extension folder in place. To update, pull this repository, rerun `pyth
 
 ## Site permissions
 
-Version 0.3 removes the broad debugger and tabs permissions. The production manifest has no required website hosts, no activeTab shortcut, and no arbitrary script/CDP escape hatch. Chromium enforces host grants for the fixed top-document script. Only the extension UI can edit site rules or approve commands; agents cannot grant sites through the native bridge.
+Version 0.3 removes the broad debugger and tabs permissions. The production manifest has no required website hosts, no activeTab shortcut, and no arbitrary script/CDP escape hatch. Chromium enforces host grants for the fixed top-document script. The extension UI saves site rules into a shared local policy file. Only a browser user gesture can grant new host consent or approve a command; agent page commands cannot grant sites.
 
 | Setting | Behavior | Suggested hosts |
 |---|---|---|
@@ -37,7 +37,7 @@ Version 0.3 removes the broad debugger and tabs permissions. The production mani
 | Ask every command | One approval per command, agent and tab, expiring at the caller deadline. Read/claim/current also ask. | `https://mail.google.com`, `https://calendar.google.com`, `https://github.com`, `https://colab.research.google.com`. |
 | Block | No bridge page access. All unlisted origins start here. | Banking, payment services, billing, login and account-security pages. |
 
-Suggestions grant nothing. Add each origin yourself; subdomains are separate. Chromium’s host grant covers all ports on that host, while the bridge additionally enforces the exact scheme/host/port origin. HTTPS is required except for localhost testing. A wildcard grant is never requested by the UI. Setting Block revokes the optional host grant when no other allowed origin uses it.
+Common-site buttons add one exact origin after your browser consent. Colab, Gmail, Calendar and GitHub suggestions use Ask; existing choices are preserved. Saved rows have access controls, Remove and Undo. Subdomains are separate. Chromium’s host grant covers all ports on that host, while the bridge additionally enforces the exact scheme/host/port origin. HTTPS is required except for localhost testing. A wildcard grant is never requested by the UI. Setting Block revokes the optional host grant when no other allowed origin uses it.
 
 Bank/payment hosts on the built-in list, payment/login URL paths, and detected password/card forms are additionally denied. This detection is incomplete and cannot identify every bank or payment workflow; do not grant sensitive origins. Host permission cannot distinguish searching from sharing, deleting, sending, publishing or running code. Use Ask when you want every such command reviewed, including on Workspace hosts.
 
@@ -45,7 +45,7 @@ The full command and destination are inspectable before approval. Upload approva
 
 For approvals, keep the popup or Site permissions page open and give yourself time with `--timeout 120`. A policy edit or disconnect cancels a waiting approval. An action already submitted to the browser may still finish. The page checks its URL and command deadline again before running.
 
-This version disables **eval, raw CDP, trusted keyboard shortcuts and screenshots**. DOM click/type events may be ignored by complex editors. File uploads are capped at 500 KB total per command. Those capability limits preserve the site boundary; Google editors and Colab still need real signed-in validation.
+This version disables **eval, raw CDP, trusted keyboard shortcuts and screenshots**. Fixed DOM commands provide ARIA name/role targeting, pointer events and bounded text/HTML reads. A Monaco textarea adapter is tested with the pinned local editor fixture; this does not establish compatibility with every Google editor or Colab version. File uploads are capped at 500 KB total per command.
 
 ## Give each agent its own tabs
 
@@ -58,7 +58,7 @@ python3 browser.py --connection BROWSER_ID --agent TASK_ID open https://www.goog
 
 Replace `BROWSER_ID` with a `b_…` ID from status. Choose a unique, stable `TASK_ID` for this agent's task and save both IDs in your task notes. Multiple profiles are never selected by browser preference or guessed from the URL.
 
-`open` always creates a new tab and returns its numeric browser ID plus an owned `t_…` target. To reserve an existing tab:
+`open` creates a background tab by default, leaving your active tab and focused window alone. Use `open URL --foreground`, `activate TARGET`, or disable the background preference only when you want focus to move. Page actions do not focus the browser. `open` always creates a new tab and returns its numeric browser ID plus an owned `t_…` target. To reserve an existing tab:
 
 ```bash
 python3 browser.py --connection BROWSER_ID --agent TASK_ID claim 123
@@ -106,7 +106,39 @@ Further writes to that tab are blocked while an unknown action remains unresolve
 
 `read` returns page text and visible interactive elements with CSS selectors and bounded text-field values. Click and type require exactly one visible match and reject covered targets. `type` replaces contents; `--append` preserves them. Cross-site links and forms require an explicit open/navigate command so the destination can be checked. Direct protected payment/login links and forms are refused.
 
-Text and selectors describe the top document. Embedded frames, browser internal pages, extension pages, private browsing and sensitive forms are excluded. Sign-in and consent require your manual interaction. The extension never reads cookies or browser passwords.
+Reads include open shadow roots and same-origin frames, with selectors such as `#host >>> button` or `#frame >>> #field`. Cross-origin frames, closed shadow roots, browser internal pages, extension pages, private browsing and sensitive forms are excluded. Sign-in and consent require your manual interaction. The extension never reads cookies or browser passwords.
+
+```bash
+python3 browser.py --agent TASK_ID read TARGET_ID --selector main --offset 20000 --limit 20000
+python3 browser.py --agent TASK_ID read TARGET_ID --html --element-offset 180
+python3 browser.py --agent TASK_ID click TARGET_ID --role button --name "Save"
+python3 browser.py --agent TASK_ID scroll TARGET_ID 500 --selector '#results'
+python3 browser.py --agent TASK_ID type TARGET_ID '#editor' 'replacement code'
+```
+
+Read results report `nextOffset` and `nextElementOffset`; use those to continue instead of guessing or taking screenshots. Text is capped at 500,000 characters per scope; individual responses are bounded. `--html` returns up to 20,000 characters of sanitized markup, with scripts, frames and inline event handlers removed. DOM names are derived from ARIA labels, associated labels and visible text; they are not a complete accessibility-tree implementation. Click events remain untrusted DOM input.
+
+The optional **Show agent cursor** preference displays a short agent/action label beside a page target. It never moves the OS pointer, changes window focus, shows typed content, or delays the command. The label fades after about two seconds; background-page timers may clean it up later. You see it when viewing the target tab.
+
+## Shared local policy
+
+Every agent and connected profile can use one versioned JSON file. The default is `~/.config/mehtagent/browser-policy.json` (or `$XDG_CONFIG_HOME/mehtagent/browser-policy.json`). Override with `MEHTAGENT_BROWSER_POLICY` before installation, or `python3 install.py --policy-file /path/to/browser-policy.json`. Use that same path for CLI inspection. The extension uses the path embedded in its installed native launcher.
+
+```json
+{"version":1,"sites":{"https://drive.google.com":"allow","https://colab.research.google.com":"ask"},"preferences":{"background":true,"showCursor":true}}
+```
+
+See [the schema](browser-policy.schema.json) and [optional starter example](browser-policy.example.json). The example is never installed automatically. On first connection, existing extension rules are migrated once if the file is missing; an existing shared file wins. This preserves an existing Allow choice for Colab rather than resetting it to the suggested Ask mode.
+
+Site permissions shows the file location and supports Import with a change preview and Export. A connected host is required to save edits. Changes use atomic owner-only writes and revision checks, so one profile cannot silently overwrite another profile's intervening edit. Connected hosts watch external file changes. Files are limited to 64 KB and 200 exact origins. Unknown fields, malformed JSON, duplicate keys on disk, protected host grants and invalid preferences fail closed. Restore an invalid/missing file and reconnect. Already-dispatched actions may still finish.
+
+```bash
+python3 browser.py policy show
+python3 browser.py policy validate ./browser-policy.json
+python3 browser.py policy example
+```
+
+**The policy file does not grant browser consent.** A new origin added on disk remains inaccessible in each browser until its user clicks **Grant access** and accepts the native browser prompt. Removing or blocking a rule revokes its unused optional host grant. Treat policy edits as trusted user configuration; the bridge coordinates agents running as your OS user, rather than isolating those processes from the file.
 
 ## Local access and storage
 
@@ -114,7 +146,7 @@ Connect enables fixed commands only on the sites you explicitly granted, using t
 
 The browser starts Python over native messaging stdin/stdout. There is no listening HTTP port, cloud service, or webpage message endpoint. The manifest allows this extension's fixed ID. Other processes running as your OS user can access the bridge; ownership coordinates trusted agents and is not a boundary against local malware.
 
-On macOS, runtime and persistent state live under `~/Library/Application Support/LocalBrowserBridge/`. The SQLite journal records operation metadata, ownership, outcomes and fixed failure codes; raw error text is excluded. Agent IDs and labels persist, so choose non-sensitive names. IPC commands/results temporarily include URLs, page text, typed text and upload bytes in an owner-protected local database; they are deleted on completion/timeout or on the next bridge access after expiry. SQLite secure_delete is enabled, and legacy journal error text is redacted on access. This is not a promise of forensic erasure from OS backups or snapshots. Site rules persist in extension-local storage; pending approvals do not persist or replay. Your agent's own tool logs are outside the extension's control.
+On macOS, runtime and persistent state live under `~/Library/Application Support/LocalBrowserBridge/`. The SQLite journal records operation metadata, ownership, outcomes and fixed failure codes; raw error text is excluded. Agent IDs and labels persist, so choose non-sensitive names. IPC commands/results temporarily include URLs, page text, typed text and upload bytes in an owner-protected local database; they are deleted on completion/timeout or on the next bridge access after expiry. SQLite secure_delete is enabled, and legacy journal error text is redacted on access. This is not a promise of forensic erasure from OS backups or snapshots. Site rules and preferences persist in the shared local JSON file and a cached copy in extension-local storage; the file contains no task/session/page data. Pending approvals do not persist or replay. Your agent's own tool logs are outside the extension's control.
 
 Chrome and Brave both look for the native-host manifest under `~/Library/Application Support/Google/Chrome/NativeMessagingHosts/`. Runtime files live outside Documents because macOS can deny browser-launched helpers access there. Startup errors go to `~/Library/Application Support/LocalBrowserBridge/native-host.log`. A sandboxed assistant needs filesystem access to the state directory; the local bridge itself needs no network connection.
 
@@ -129,6 +161,7 @@ python3 -m unittest discover -s tests -v
 node --test tests/*.test.cjs
 python3 -m pip install playwright==1.58.0
 python3 -m playwright install chromium
+npm ci --ignore-scripts --no-audit --no-fund
 python3 tests/e2e.py --output /tmp/browser-bridge-evidence
 ```
 
@@ -136,7 +169,7 @@ The last command runs the actual extension and native host in isolated headless 
 
 ## Remove
 
-Disconnect, remove **Local Browser Bridge** from each browser, and remove `~/Library/Application Support/Google/Chrome/NativeMessagingHosts/com.mehtagent.browser_bridge.json`. You can then remove this checkout and `~/Library/Application Support/LocalBrowserBridge/`, including its recovery journal.
+Disconnect, remove **Local Browser Bridge** from each browser, and remove `~/Library/Application Support/Google/Chrome/NativeMessagingHosts/com.mehtagent.browser_bridge.json`. You can then remove this checkout and `~/Library/Application Support/LocalBrowserBridge/`, including its recovery journal. Remove the shared policy separately if you no longer need it.
 
 ## Portability and privacy boundary
 
