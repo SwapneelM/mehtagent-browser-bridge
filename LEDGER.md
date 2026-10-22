@@ -16,3 +16,5 @@ Validation: 15 Python tests and 9 Node tests passed. The real extension/native-h
 | [Chromium debugger API](https://developer.chrome.com/docs/extensions/reference/api/debugger) | 2026-10-21 | Tab-scoped page instrumentation and DevTools transport. |
 | [Brave native-host lookup](https://github.com/brave/brave-core/blob/master/app/brave_main_delegate.cc) | 2026-10-21 | Chrome's native-host registration location on macOS. |
 | [Playwright extension tests](https://playwright.dev/python/docs/chrome-extensions) | 2026-10-21 | Headless Chromium with an isolated persistent test profile. |
+
+The shipped tests include the timeout/late-error/queued-write regression and the actual extension/native-host E2E runner. Both suites and the public-source scan passed before the initial release commits.
