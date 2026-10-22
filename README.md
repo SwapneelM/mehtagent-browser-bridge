@@ -45,7 +45,7 @@ The full command and destination are inspectable before approval. Upload approva
 
 For approvals, keep the popup or Site permissions page open and give yourself time with `--timeout 120`. A policy edit or disconnect cancels a waiting approval. An action already submitted to the browser may still finish. The page checks its URL and command deadline again before running.
 
-This version disables **eval, raw CDP, trusted keyboard shortcuts and screenshots**. Fixed DOM commands provide ARIA name/role targeting, pointer events and bounded text/HTML reads. A Monaco textarea adapter is tested with the pinned local editor fixture; this does not establish compatibility with every Google editor or Colab version. File uploads are capped at 500 KB total per command.
+This version disables **eval, raw CDP, trusted keyboard shortcuts and screenshots**. Fixed DOM commands provide ARIA name/role targeting, pointer events and bounded text/HTML reads. Contenteditable uses scoped DOM text and InputEvents. The Monaco textarea adapter uses range replacement and InputEvents, tested against a pinned local editor fixture; this does not establish compatibility with every Google editor or Colab version. File uploads are capped at 500 KB total per command.
 
 ## Give each agent its own tabs
 

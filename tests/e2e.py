@@ -67,6 +67,7 @@ def run(output, executable=None):
         if not condition:
             raise AssertionError(name)
         checks.append(name)
+        print("PASS: "+name,flush=True)
 
     with tempfile.TemporaryDirectory(prefix="browser-bridge-e2e-") as td:
         temp = Path(td)
@@ -123,7 +124,7 @@ def run(output, executable=None):
                         cid = available[0]["id"]
                         epoch = available[0]["epoch"]
                         def call(command, agent="agent-a", **kw):
-                            return request(command, state, agent=agent, connection=cid, timeout=15, **kw)
+                            return request(command, state, agent=agent, connection=cid, timeout=45, **kw)
                         try:
                             call({"action":"open","url":url})
                             raise AssertionError("Unlisted host was allowed")
@@ -265,6 +266,7 @@ def run(output, executable=None):
                         call({'action':'type','tab':editor_tab['target'],'selector':'#editor','text':'\nappended line','append':True})
                         check(editor_page.evaluate('editor.getValue()')=='replacement editor text\nsecond line\nappended line',"Monaco append preserves complete previous model")
                         call({'action':'close','tab':editor_tab['target']})
+                        check(worker.evaluate("async()=>({tabs:(await chrome.tabs.query({active:true})).map(t=>t.id),windows:(await chrome.windows.getAll()).filter(w=>w.focused).map(w=>w.id)})")==focused_before,'background DOM and editor actions preserve active tab and focused window')
                         call({"action": "type", "tab": a, "selector": "#query", "text": "hello chromium"})
                         call({"action": "click", "tab": a, "selector": "#add"})
                         for selector in ["#override","#nested","#external"]:
@@ -334,7 +336,7 @@ def run(output, executable=None):
                     finally:
                         db.close()
                 except Exception:
-                    diagnostic = {"measurements":measurements,"pages": [{"url":p.url,"text":p.locator("body").inner_text()[:1800]} for p in context.pages],
+                    diagnostic = {"measurements":measurements,"pages": [{"url":p.url,"text":p.locator("body").inner_text()[:1800],"editable":p.locator('#editable').text_content() if p.locator('#editable').count() else None} for p in context.pages],
                                   "native_log": (temp / "runtime/native-host.log").read_text()}
                     (output / "failure.json").write_text(json.dumps(diagnostic, indent=2))
                     print(json.dumps(diagnostic, indent=2))

@@ -390,14 +390,15 @@ function pageAction(expectedURL, action, args, deadline) {
         for(const kind of ['keydown','keyup']){check();input.dispatchEvent(new win.KeyboardEvent(kind,{bubbles:true,composed:true,cancelable:true,key:'a',code:'KeyA',keyCode:65,which:65,metaKey:mac,ctrlKey:!mac}));}
         if(args.append)for(const kind of ['keydown','keyup']){check();input.dispatchEvent(new win.KeyboardEvent(kind,{bubbles:true,composed:true,cancelable:true,key:'ArrowRight',code:'ArrowRight',keyCode:39,which:39}));}
         check();
-        if(!doc.execCommand('insertText',false,args.text))throw new Error('Editor rejected text insertion');
+        input.setRangeText(args.text,input.selectionStart,input.selectionEnd,'end');
+        input.dispatchEvent(new win.InputEvent('input',{bubbles:true,composed:true,inputType:'insertText',data:args.text}));
         return {typed:args.text.length,selector:args.selector,adapter:'monaco-textarea'};
       }
       if(!((e.localName==='input' && ['text','search','email','url','tel','number'].includes(e.type)) || e.localName==='textarea' || e.isContentEditable))throw new Error('Type requires an editable text field');
       check();cursor(e,'type');e.focus({preventScroll:true});
       if(!e.dispatchEvent(new win.InputEvent('beforeinput',{bubbles:true,composed:true,cancelable:true,inputType:args.append?'insertText':'insertReplacementText',data:args.text})))throw new Error('Page cancelled text input');
       check();const value=(args.append ? (e.isContentEditable?e.innerText:e.value):'')+args.text;
-      if(e.isContentEditable){const selection=win.getSelection(),range=doc.createRange();range.selectNodeContents(e);selection.removeAllRanges();selection.addRange(range);if(!doc.execCommand('insertText',false,value))throw new Error('Editor rejected text insertion');}
+      if(e.isContentEditable){e.innerText=value;const selection=win.getSelection(),range=doc.createRange();range.selectNodeContents(e);range.collapse(false);selection.removeAllRanges();selection.addRange(range);e.dispatchEvent(new win.InputEvent('input',{bubbles:true,composed:true,inputType:args.append?'insertText':'insertReplacementText',data:args.text}));}
       else {const proto=e.localName==='textarea'?win.HTMLTextAreaElement.prototype:win.HTMLInputElement.prototype;Object.getOwnPropertyDescriptor(proto,'value').set.call(e,value);e.dispatchEvent(new win.InputEvent('input',{bubbles:true,composed:true,inputType:'insertText',data:args.text}));e.dispatchEvent(new win.Event('change',{bubbles:true}));}
       return {typed:args.text.length,selector:args.selector};
     }
