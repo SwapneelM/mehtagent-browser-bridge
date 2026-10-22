@@ -1,0 +1,16 @@
+{
+  "version": "0.4.1",
+  "baseline": "3825329",
+  "node_checks": 64,
+  "python_checks": 27,
+  "actual_extension_native_chromium_checks": 78,
+  "actual_extension_native_brave_checks": 78,
+  "synthetic_rendered_states": 18,
+  "synthetic_render_loads": 2,
+  "synthetic_render_console_errors": 0,
+  "before_crash_reproduced_both_widths": true,
+  "original_profile_or_user_data_used": false,
+  "live_extension_reloaded": false,
+  "full_mehtagent_acceptance": false,
+  "remaining_boundary": "Established missing/malformed shared-policy repair requires restoring a valid file; CAS preserves original data."
+}

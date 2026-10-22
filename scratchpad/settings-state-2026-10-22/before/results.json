@@ -1,0 +1,26 @@
+{
+  "schema": "browser-settings-render/v1",
+  "source_root": "/private/tmp/mehtagent-bridge-settings-20261022",
+  "synthetic_runtime": true,
+  "user_browser_or_data_used": false,
+  "loads": 2,
+  "baseline": true,
+  "states": [
+    {
+      "viewport": 1440,
+      "case": "legacy-worker",
+      "error": "Cannot read properties of undefined (reading 'showCursor')",
+      "site_rows": 0,
+      "console_errors": [],
+      "screenshot": "1440-legacy-before.png"
+    },
+    {
+      "viewport": 390,
+      "case": "legacy-worker",
+      "error": "Cannot read properties of undefined (reading 'showCursor')",
+      "site_rows": 0,
+      "console_errors": [],
+      "screenshot": "390-legacy-before.png"
+    }
+  ]
+}

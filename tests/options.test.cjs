@@ -10,13 +10,13 @@ function setup(){
  const source=fs.readFileSync(path.join(__dirname,'../extension/options.js'),'utf8');
  const end=source.indexOf('for(const suggestion of SitePolicy.suggestions)');assert.ok(end>0);
  const calls=[],nodes=new Map();let firstRules,reads=0;
- const current={rules:{'https://example.com':'block'},preferences:{background:true,showCursor:true},policy:{revision:'intervening'},missing:[],connected:true,policyReady:true};
- const ctx=vm.createContext({document:{querySelector:s=>{if(!nodes.has(s))nodes.set(s,{textContent:''});return nodes.get(s);}},SitePolicy:{defaults:{background:true,showCursor:true}},renderApproval(){},chrome:{runtime:{getManifest:()=>({permissions:['scripting'],optional_host_permissions:['https://*/*']}),sendMessage:message=>{
+ const current={settingsVersion:1,rules:{'https://example.com':'block'},preferences:{background:true,showCursor:true},policy:{revision:'intervening'},missing:[],connected:true,policyReady:true};
+ const ctx=vm.createContext({document:{querySelector:s=>{if(!nodes.has(s))nodes.set(s,{textContent:''});return nodes.get(s);}},SitePolicy:require('../extension/policy.js'),renderApproval(){},chrome:{runtime:{getManifest:()=>({permissions:['scripting'],optional_host_permissions:['https://*/*']}),sendMessage:message=>{
   calls.push(message);
   if(message.type==='rules' && ++reads===1)return new Promise(resolve=>{firstRules=resolve;});
   return Promise.resolve(current);
  }}}});
- vm.runInContext(source.slice(0,end),ctx);vm.runInContext("draw=()=>{};state={policy:{revision:'before'},rules:{'https://example.com':'allow'},preferences:{}}",ctx);
+ vm.runInContext(source.slice(0,end),ctx);vm.runInContext("draw=()=>{};state={settingsCompatible:true,connected:true,policyReady:true,policy:{revision:'before'},rules:{'https://example.com':'allow'},preferences:{}}",ctx);
  return {ctx,calls,current,resolvePoll:()=>firstRules(current)};
 }
 
