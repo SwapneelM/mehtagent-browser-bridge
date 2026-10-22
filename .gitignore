@@ -1,0 +1,8 @@
+.state/
+__pycache__/
+tests/__pycache__/
+*.pyc
+.DS_Store
+dist/
+*.sqlite3*
+*.log

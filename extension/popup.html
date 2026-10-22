@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Local Browser Bridge</title>
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <p class="eyebrow">THIS BROWSER PROFILE</p>
+  <h1>Local Browser Bridge</h1>
+  <p id="status" role="status">Checking connection…</p>
+  <p>Your assistant can read and act in this profile’s tabs while connected. Website actions use your signed-in accounts.</p>
+  <button id="toggle" disabled>Connect</button>
+  <dl>
+    <dt>Connection</dt><dd id="session">—</dd>
+    <dt>Last action</dt><dd id="action">—</dd>
+  </dl>
+  <p id="error" role="alert"></p>
+  <p class="footnote">Disconnect stops new commands and releases tab debugging. An action already sent may still finish. Nothing connects automatically when your browser restarts.</p>
+  <script src="popup.js"></script>
+</body>
+</html>
