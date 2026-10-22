@@ -17,6 +17,7 @@ function setup() {
   let storedPolicy=null;
   const port = { onMessage: event(), onDisconnect: event(), postMessage: m => {
     if(m.type==='policy_update') {
+      if(m.revision!==storedPolicy.revision){setImmediate(()=>port.onMessage.emit({type:'policy_result',id:m.id,...storedPolicy,error:'Local policy changed; refresh and review'}));return;}
       const doc=m.operation.migrate || m.operation.replace || {...storedPolicy.policy};
       if(m.operation.site) {doc.sites={...doc.sites}; if(m.operation.site.mode===null) delete doc.sites[m.operation.site.origin];else doc.sites[m.operation.site.origin]=m.operation.site.mode;}
       if(m.operation.preferences) doc.preferences={...doc.preferences,...m.operation.preferences};
@@ -60,7 +61,7 @@ function setup() {
     await vm.runInContext('queue', ctx);
     return replies.length ? JSON.parse(JSON.stringify(replies.at(-1))) : null;
   }
-  return { calls, tabs, chrome, ctx, port, command, unfocus: () => { focused = false; }, setRules: r=>{rules=r;}, revoke:()=>{granted=false;} };
+  return { calls, tabs, chrome, ctx, port, command, unfocus: () => { focused = false; }, setRules: r=>{rules=r;}, revoke:()=>{granted=false;},setSharedPolicy:(document,revision)=>{storedPolicy={path:'/synthetic/browser-policy.json',revision,policy:document};port.onMessage.emit({type:'policy',...storedPolicy});} };
 }
 
 test('new tab means a new ID even when another tab has the same URL', async () => {
@@ -313,4 +314,12 @@ test('local policy anchor keeps settings authorized while website senders stay e
  assert.equal(reply.policyReady,true);assert.equal(reply.rules['https://example.com'],'allow');
  let called=false;s.chrome.runtime.onMessage.emit({type:'rules'},{id:'test',url:'https://example.com/options.html#policy-heading'},()=>{called=true;});
  await new Promise(resolve=>setImmediate(resolve));assert.equal(called,false);
+});
+
+
+test('an edit keeps the UI revision across a permission prompt and cannot overwrite intervening policy',async()=>{
+ const s=setup();await vm.runInContext('policySync',s.ctx);
+ s.setSharedPolicy({version:1,sites:{'https://example.com':'block'}},'changed');await vm.runInContext('policySync',s.ctx);
+ const reply=await new Promise(resolve=>s.chrome.runtime.onMessage.emit({type:'setRule',origin:'https://example.com',mode:'allow',revision:'initial'},{id:'test',url:'chrome-extension://test/options.html'},resolve));
+ assert.match(reply.error,/changed/);assert.equal((await vm.runInContext('rules()',s.ctx))['https://example.com'],'block');
 });

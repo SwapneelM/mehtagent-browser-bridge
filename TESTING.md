@@ -23,8 +23,12 @@ Version0.3.1 adds actual popup-to-settings clicking, stale-manifest gating (with
 
 Version 0.4 tests real local policy migration/write/watch, two native hosts sharing one file, stale revision conflicts, malformed/oversize/duplicate-key policies, protected origins, owner-only writes and symlink rejection. Browser flows cover common-site add, Remove/Undo, missing-consent controls, import preview/apply/export, background focus preservation, long text pagination, scoped values/HTML, ARIA menu items, pointer event order, open shadow roots, same-origin frames, nested scrolling, contenteditable and the pinned Monaco 0.52.2 editor model. Monaco is a development fixture fetched by `npm ci`; it is not shipped or loaded by the extension. Tests cannot prove every production website, operating system, editor or browser-native consent dialog works.
 
-Latest local verification (2026-10-22, v0.4.0): **27 Python,31 Node,76 Chromium E2E,76 Brave E2E — all passed** before commit. Browser suites include the mobile Policy file link followed by continued settings actions; independent Node tests exercise revocation during asynchronous preference/policy loads. No screenshots were created.
+Latest local verification (2026-10-22, v0.4.0): **27 Python,34 Node,78 Chromium E2E,78 Brave E2E — all passed** before commit. Browser suites include the mobile Policy file link followed by continued settings actions; independent Node tests exercise revocation during asynchronous preference/policy loads. No screenshots were created.
 
 Synthetic integration callers allow45seconds per command on shared CI runners and print per-check progress. This does not change the CLI's production default deadline or replay timed-out actions.
 
 Background input uses DOM setters/range replacement and InputEvents, without document.execCommand or foreground activation. Integration checks independently inspect the real Monaco model and verify the active browser tab/window remain unchanged after editing.
+
+Cursor checks record insertion properties with a synthetic-page MutationObserver rather than depending on the indicator remaining visible after slower bridge reads.
+
+Settings concurrency tests execute the real send/task/refresh functions with delayed prior polls and delayed browser consent, verifying that edits retain the original UI revision. Import preview revisions remain fixed even while the shared file updates; real browser tests reject a stale preview and preserve its intervening Block.

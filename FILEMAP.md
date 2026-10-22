@@ -28,3 +28,5 @@
 | extension/protected-hosts.json |2026-10-22|current| Native policy validation host list, checked against the browser policy list. |
 | tests/test_policy_store.py, tests/test_policy_native.py |2026-10-22|current| Policy validation, concurrency, migration, native sharing and invalid-file regressions. |
 | package.json, package-lock.json |2026-10-22|current| Pinned official Monaco development fixture; no extension runtime dependency. |
+
+| tests/options.test.cjs |2026-10-22|current| Executes real settings logic with delayed refresh/consent and checks immutable edit/import revisions. |

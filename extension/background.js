@@ -20,7 +20,7 @@ let policySync = Promise.resolve();
 let policyApply = Promise.resolve();
 const policyRequests = new Map();
 
-function nativePolicy(operation, revision = sharedPolicy.revision) {
+function nativePolicy(operation, revision) {
   if(!port || !session) return Promise.reject(new Error("Connect to edit the shared policy"));
   const id=crypto.randomUUID(), current=port;
   return new Promise((resolve,reject)=>{
@@ -183,7 +183,8 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           if(rule.mode!=="block" && !await chrome.permissions.contains({origins:[rule.pattern]})) throw new Error("Grant this host using the browser permission prompt first");
           operation={site:{origin:rule.origin,mode:message.type==="removeRule" ? null : rule.mode}};
         }
-        const result=await nativePolicy(operation);
+        if(!Object.hasOwn(message,"revision")) throw new Error("Refresh Site permissions before applying this edit");
+        const result=await nativePolicy(operation,message.revision);
         if(result.error) {if(result.policy) await applyPolicy({...result,error:undefined});throw new Error(result.error);}
         await applyPolicy(result);
         return policyState();

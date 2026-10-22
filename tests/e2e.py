@@ -206,6 +206,18 @@ def run(output, executable=None):
                         settings.locator('#policy-file').set_input_files(str(import_file))
                         settings.locator('#import-preview').wait_for(state='visible')
                         check('0 added' in settings.locator('#import-counts').inner_text(),'import shows explicit change preview before applying')
+                        value=policy_snapshot(policy_file)
+                        update_policy(policy_file,value['revision'],{'site':{'origin':'https://intervening.example','mode':'block'}})
+                        settings.wait_for_function("()=>document.querySelector('#site-count').textContent==='(2)'")
+                        settings.get_by_role('button',name='Apply policy',exact=True).click()
+                        settings.wait_for_function("()=>document.querySelector('#error').textContent.includes('Policy edit refused')")
+                        check(policy_snapshot(policy_file)['policy']['sites'].get('https://intervening.example')=='block','stale import preview cannot overwrite intervening policy edit')
+                        check(settings.locator('#import-preview').is_visible(),'conflicted import stays open for review instead of claiming success')
+                        settings.get_by_role('button',name='Cancel',exact=True).click()
+                        value=policy_snapshot(policy_file);update_policy(policy_file,value['revision'],{'replace':baseline['policy']})
+                        settings.wait_for_function("()=>document.querySelector('#site-count').textContent==='(1)'")
+                        settings.locator('#policy-file').set_input_files(str(import_file))
+                        settings.locator('#import-preview').wait_for(state='visible')
                         settings.get_by_role('button',name='Apply policy',exact=True).click()
                         settings.locator('#import-preview').wait_for(state='hidden')
                         check(policy_snapshot(policy_file)['policy']==baseline['policy'],'policy import round trips canonical rules and preferences')
@@ -231,10 +243,17 @@ def run(output, executable=None):
                         check('END_MARKER' in call({"action":"read","tab":a,"offset":20000})['text'],"later text is accessible without screenshots")
                         scoped=call({"action":"read","tab":a,"selector":"#query","html":True})
                         check(scoped['text']=='old value' and '<input' in scoped['html'],"scoped read includes input value and sanitized HTML")
+                        first_page.evaluate("""()=>{
+                            window.__cursorRecords=[];
+                            new MutationObserver(records=>{for(const record of records)for(const e of record.addedNodes){
+                                if(e.id==='__mehtagent_cursor__')window.__cursorRecords.push({agent:e.dataset.agent,action:e.dataset.action,x:Number(e.dataset.x),y:Number(e.dataset.y),pointerEvents:getComputedStyle(e).pointerEvents,width:innerWidth,height:innerHeight});
+                            }}).observe(document.documentElement,{childList:true});
+                        }""")
                         call({"action":"click","tab":a,"role":"menuitem","name":"Semantic action"})
                         check(call({"action":"read","tab":a,"selector":"#events"})['text']=='pointerdown,mousedown,pointerup,mouseup,click',"ARIA name click dispatches pointer and mouse event sequence")
-                        check(first_page.locator('#__mehtagent_cursor__').evaluate("e=>getComputedStyle(e).pointerEvents")=='none',"agent cursor cannot intercept page input")
-                        check(first_page.locator('#__mehtagent_cursor__').evaluate("e=>e.dataset.agent==='agent-a' && e.dataset.action==='click' && Number(e.dataset.x)>=0 && Number(e.dataset.y)>=0 && Number(e.dataset.x)<innerWidth && Number(e.dataset.y)<innerHeight"),"virtual cursor identifies agent and action within viewport")
+                        indicator=first_page.evaluate('window.__cursorRecords.at(-1)')
+                        check(indicator and indicator['pointerEvents']=='none',"agent cursor cannot intercept page input")
+                        check(indicator['agent']=='agent-a' and indicator['action']=='click' and 0<=indicator['x']<indicator['width'] and 0<=indicator['y']<indicator['height'],"virtual cursor identifies agent and action within viewport")
 
                         value=policy_snapshot(policy_file);update_policy(policy_file,value['revision'],{'preferences':{'showCursor':False}})
                         settings.wait_for_function("()=>!document.querySelector('#show-cursor').checked")
