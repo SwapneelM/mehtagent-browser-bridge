@@ -70,3 +70,7 @@ Second remote CI follow-up: the ephemeral cursor correctly disappeared before a 
 UI revision follow-up: policy edits now send the revision the settings screen showed when the user began the action, preserving it across asynchronous browser consent. The worker forwards that explicit revision instead of substituting a newer watched revision; a concurrent file/profile change therefore rejects stale intent. Actual handler/native-CAS harness regression preserves an intervening Block.
 
 Final policy/cursor build:34 Node tests pass;78 actual extension/native-host checks each in isolated Chromium and Brave. Includes a stale import preview rejecting an intervening Block and a fresh preview succeeding. Final ordinary-edit revision capture is additionally tested by actual settings functions under delayed poll/consent; this last narrow tweak does not change page action code. Native Python modules remain the27-test verified build.
+
+Snapshot consistency regression: settings now returns rules/preferences and their stored revision from the same storage snapshot, rather than combining older rules with a newer watched global revision during asynchronous browser-consent checks. An actual service-worker harness test forces that interleaving and verifies the old snapshot keeps its old revision.
+
+Final settings snapshot regression independently verified:35 Node tests pass; preceding browser/action build passed all78 Chromium checks in remote CI39745326673. Page action code is unchanged by the snapshot correction.

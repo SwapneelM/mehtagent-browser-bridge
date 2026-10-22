@@ -30,11 +30,11 @@ function setup() {
   let focused = true;
   let granted = true;
   let rules = {"https://example.com":"allow","https://example.org":"allow"};
-  let preferences={background:true,showCursor:true};
+  let preferences={background:true,showCursor:true},cachedPolicy=null;
   const chrome = {
     runtime: { id: 'test', getURL:p=>'chrome-extension://test/'+p, connectNative: () => port, onMessage: event(), getPlatformInfo: async () => ({ os: 'mac' }) },
     action: { setBadgeText() {}, setBadgeBackgroundColor() {} },
-    storage: {local:{get:async()=>({siteRules: rules,preferences}),set:async data=>{if(data.siteRules) rules=data.siteRules;if(data.preferences)preferences=data.preferences;},setAccessLevel:async()=>{} }},
+    storage: {local:{get:async()=>({siteRules: rules,preferences,sharedPolicy:cachedPolicy}),set:async data=>{if(data.siteRules) rules=data.siteRules;if(data.preferences)preferences=data.preferences;if(data.sharedPolicy)cachedPolicy=data.sharedPolicy;},setAccessLevel:async()=>{} }},
     permissions: {contains:async()=>granted,remove:async()=>true},
     scripting: {executeScript:async options=>{calls.push(['script',options]);return [{result:{ok:true,result:'page A'}}];}},
     tabs: { onRemoved: event(), query: async () => [...tabs.values()],
@@ -322,4 +322,12 @@ test('an edit keeps the UI revision across a permission prompt and cannot overwr
  s.setSharedPolicy({version:1,sites:{'https://example.com':'block'}},'changed');await vm.runInContext('policySync',s.ctx);
  const reply=await new Promise(resolve=>s.chrome.runtime.onMessage.emit({type:'setRule',origin:'https://example.com',mode:'allow',revision:'initial'},{id:'test',url:'chrome-extension://test/options.html'},resolve));
  assert.match(reply.error,/changed/);assert.equal((await vm.runInContext('rules()',s.ctx))['https://example.com'],'block');
+});
+
+
+test('settings rules and revision come from one stored snapshot during a policy update',async()=>{
+ const s=setup();await vm.runInContext('policySync',s.ctx);let switched=false;
+ s.chrome.permissions.contains=async()=>{if(!switched){switched=true;vm.runInContext("sharedPolicy={path:'/synthetic/browser-policy.json',revision:'newer',policy:{version:1,sites:{}}}",s.ctx);}return true;};
+ const reply=await vm.runInContext('policyState()',s.ctx);
+ assert.equal(reply.rules['https://example.com'],'allow');assert.equal(reply.policy.revision,'initial');
 });
