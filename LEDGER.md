@@ -34,3 +34,17 @@ The native optional-host consent dialog remains a manual smoke check: the headle
 Design mechanics referenced: dribbble-27507082-risk-tag-as-segment-strip (aligned rows), mkdocs-sortable-data-table (contained scrolling), mkdocs-clamped-tooltip (viewport-bound details). Private design/read/review artifacts remain outside this public repository.
 
 Primary references verified2026-10-21: [Chromium extension security FAQ](https://chromium.googlesource.com/chromium/src/+/main/extensions/docs/security_faq.md) (debugger can sidestep host restrictions), [optional permissions](https://developer.chrome.com/docs/extensions/reference/api/permissions), [fixed scripting and host grants](https://developer.chrome.com/docs/extensions/reference/api/scripting), [tabs metadata permissions](https://developer.chrome.com/docs/extensions/reference/api/tabs).
+
+##2026-10-22:0.3.1 settings, stale manifest and privacy
+
+Site permissions now opens a direct extension tab and reports failures instead of losing them to polling. Stale manifests without scripting/optional-host permissions disable Connect/siteSave with Reload guidance; Disconnect remains available. Actualclickandoldmanifest cases added to E2E; popup handler tests added. CI now runs all Node test files.
+
+SQLite secure_delete is enabled, expired IPC rows are removed on next access with uncertain outcomes preserved, legacy raw journal errors are redacted, and future failures retain fixed codes only. Main and worker fatal Python errors emit type codes; dispatcher failure closes the process rather than leaving an inert native connection. Tests reproduce malformed-frame and SQLite-worker failures without tracebacks, and confirm a synthetic secret marker is absent from the database after cleanup. This is not a forensic-erasure or zero-storage guarantee; IPC data, tool results, OS backups and external agent logs remain outside that claim.
+
+Portability audit: public tracked source has no personal home paths; extension uses generic Chromium APIs. Native installer still explicitly supports macOS only. Linux/Windows installers and real authenticated Colab/editor behavior are not claimed verified.
+
+Validation before commit:18Python24Node tests pass. Realextension suite38checks passed in Chromium and Brave forpopupchanges; finalprivacyChromium38passed beforeworker-error sanitizer, finalBrave rerun follows worker fix. Only synthetic pages/testprofiles are in browser evidence.
+
+Files: extension/popup.js/options.js/manifest.json; bridge.py/native_host.py; tests/popup.test.cjs/test_bridge.py/e2e.py; .github/workflows/checks.yml; README.md/TESTING.md/FILEMAP.md/pluginversion. Scoped independent review addresses worker traceback gap; no private page data or course datasets are published in this bridge repo.
+
+FinalBrave38checks passed after worker-error sanitizer; independent review reproduces type-only fatal worker exit. Private task logs remain outside this public repository.

@@ -2,6 +2,7 @@
 """The browser starts this process. stdout carries native-messaging frames."""
 import argparse
 import json
+import os
 import struct
 import sys
 import threading
@@ -89,7 +90,7 @@ def serve(state):
         with db:
             # Outcomes survive caller exits. Full response bodies do not enter the journal.
             db.execute("UPDATE journal SET status=?, updated=?, detail=? WHERE id=?",
-                       (status, time.time(), None if msg.get("ok") else str(msg.get("error"))[:400], record["id"]))
+                       (status, time.time(), None if msg.get("ok") else ("command-not-executed" if msg.get("not_run") else "command-failed"), record["id"]))
             if row:
                 db.execute("UPDATE requests SET status='done', response=? WHERE id=?",
                            (json.dumps(msg), record["id"]))
@@ -146,8 +147,9 @@ def serve(state):
                     except Exception as error:
                         finish(db, {"type": "response", "id": row["id"], "ok": False, "error": str(error)})
                 stop.wait(0.1 if row else 0.3)
-        except (BrokenPipeError, OSError, ValueError):
+        except Exception:
             stop.set()
+            raise
         finally:
             with db:
                 db.execute("DELETE FROM sessions WHERE id=?", (session,))
@@ -156,7 +158,17 @@ def serve(state):
                            (time.time(), session))
             db.close()
 
-    worker = threading.Thread(target=dispatch, daemon=True)
+    def guarded_dispatch():
+        try:
+            dispatch()
+        except Exception as error:
+            # Thread tracebacks bypass main's exception handler. A failed
+            # dispatcher is fatal: close native messaging rather than leave an
+            # apparently live host blocked on stdin with no command consumer.
+            print("Native worker stopped: " + type(error).__name__, file=sys.stderr, flush=True)
+            os._exit(1)
+
+    worker = threading.Thread(target=guarded_dispatch, daemon=True)
     worker.start()
     db = connect(state)
     try:
@@ -190,6 +202,7 @@ def main():
 if __name__ == "__main__":
     try:
         main()
-    except (EOFError, ValueError, BrokenPipeError) as error:
-        print(str(error), file=sys.stderr)
+    except Exception as error:
+        # No raw exception strings or request/page data in the startup log.
+        print("Native host stopped: " + type(error).__name__, file=sys.stderr)
         sys.exit(1)

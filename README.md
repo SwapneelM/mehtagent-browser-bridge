@@ -114,7 +114,7 @@ Connect enables fixed commands only on the sites you explicitly granted, using t
 
 The browser starts Python over native messaging stdin/stdout. There is no listening HTTP port, cloud service, or webpage message endpoint. The manifest allows this extension's fixed ID. Other processes running as your OS user can access the bridge; ownership coordinates trusted agents and is not a boundary against local malware.
 
-On macOS, runtime and persistent state live under `~/Library/Application Support/LocalBrowserBridge/`. The SQLite journal records only operation metadata, ownership, and outcomes. Temporary payloads are removed after completion, timeout, or expiry. Site rules persist in extension-local storage; pending approvals do not persist or replay. Your agent's own tool logs are outside the extension's control.
+On macOS, runtime and persistent state live under `~/Library/Application Support/LocalBrowserBridge/`. The SQLite journal records operation metadata, ownership, outcomes and fixed failure codes; raw error text is excluded. Agent IDs and labels persist, so choose non-sensitive names. IPC commands/results temporarily include URLs, page text, typed text and upload bytes in an owner-protected local database; they are deleted on completion/timeout or on the next bridge access after expiry. SQLite secure_delete is enabled, and legacy journal error text is redacted on access. This is not a promise of forensic erasure from OS backups or snapshots. Site rules persist in extension-local storage; pending approvals do not persist or replay. Your agent's own tool logs are outside the extension's control.
 
 Chrome and Brave both look for the native-host manifest under `~/Library/Application Support/Google/Chrome/NativeMessagingHosts/`. Runtime files live outside Documents because macOS can deny browser-launched helpers access there. Startup errors go to `~/Library/Application Support/LocalBrowserBridge/native-host.log`. A sandboxed assistant needs filesystem access to the state directory; the local bridge itself needs no network connection.
 
@@ -126,7 +126,7 @@ The repository includes a Claude-compatible plugin in `.claude-plugin/` with a b
 
 ```bash
 python3 -m unittest discover -s tests -v
-node --test tests/background.test.cjs
+node --test tests/*.test.cjs
 python3 -m pip install playwright==1.58.0
 python3 -m playwright install chromium
 python3 tests/e2e.py --output /tmp/browser-bridge-evidence
@@ -137,3 +137,11 @@ The last command runs the actual extension and native host in isolated headless 
 ## Remove
 
 Disconnect, remove **Local Browser Bridge** from each browser, and remove `~/Library/Application Support/Google/Chrome/NativeMessagingHosts/com.mehtagent.browser_bridge.json`. You can then remove this checkout and `~/Library/Application Support/LocalBrowserBridge/`, including its recovery journal.
+
+## Portability and privacy boundary
+
+The extension uses Chromium APIs and has no browser-brand or personal-path assumptions. Its supported native installer is currently **macOS only**; Linux and Windows installers are not implemented or validated. User/runtime paths are resolved on the installing machine, rather than copied from a developer’s checkout. Do not advertise full cross-platform support.
+
+There is no telemetry or remote logging service in the bridge. Native startup logs contain exception type codes, not raw request bodies or exception messages. Live CLI/tool responses necessarily contain requested page data. Your agent provider, shell history, conversation logs, browser profiles and OS backups are separate systems; this extension cannot guarantee they retain no sensitive information. Treat the state directory as sensitive while commands run.
+
+If updated popup files load with an older cached manifest, Connect/site-grant actions show a Reload explanation. Site permissions opens an extension tab directly, so it does not depend on cached options_ui. A failed button action stays visible instead of being erased by status polling.

@@ -1,4 +1,10 @@
 const names={allow:"Allow",ask:"Ask every command",block:"Block"};
+const currentManifest=chrome.runtime.getManifest();
+const reloadNeeded=!currentManifest.permissions?.includes("scripting") || !currentManifest.optional_host_permissions;
+if(reloadNeeded) {
+  document.querySelector("#error").textContent="Reload this extension from your browser’s Extensions page to activate site permissions. Your browser is still using the older manifest.";
+  document.querySelector('button[type="submit"]').disabled=true;
+}
 const origin=document.querySelector("#origin"), mode=document.querySelector("#mode");
 async function renderRules() {
   const state=await chrome.runtime.sendMessage({type:"rules"}), box=document.querySelector("#rules");
@@ -12,7 +18,7 @@ async function renderRules() {
   }
 }
 document.querySelector("#rule-form").addEventListener("submit", async event=>{
-  event.preventDefault();document.querySelector("#error").textContent="";document.querySelector("#saved").textContent="";
+  event.preventDefault();if(reloadNeeded) return;document.querySelector("#error").textContent="";document.querySelector("#saved").textContent="";
   try {
     const rule=SitePolicy.entry(origin.value,mode.value);
     // Call request directly in this user gesture, before any async work.
@@ -22,5 +28,5 @@ document.querySelector("#rule-form").addEventListener("submit", async event=>{
     await renderRules();document.querySelector("#saved").textContent="Saved. " + rule.origin + ": " + names[rule.mode];
   } catch(error) { document.querySelector("#error").textContent=error.message; }
 });
-void renderRules();
+if(!reloadNeeded) void renderRules();
 setInterval(async()=>renderApproval(await chrome.runtime.sendMessage({type:"status"})),500);

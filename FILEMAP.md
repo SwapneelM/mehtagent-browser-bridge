@@ -19,3 +19,5 @@
 | extension/policy.js | 2026-10-21 | current | Exact-origin validation, default-deny modes, protected host/path checks. |
 | extension/options.html, extension/options.js | 2026-10-21 | current | User-initiated optional host grants and rule editing. |
 | extension/approval.js | 2026-10-21 | current | Full-command review and one-command approve/deny UI. |
+
+| tests/popup.test.cjs |2026-10-22|current| Actual popup handler checks for settings opening, visible errors and stale manifests. |

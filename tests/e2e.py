@@ -108,8 +108,12 @@ def run(output, executable=None):
                         except RuntimeError as error:
                             check("blocked" in str(error), "unlisted host denied before opening")
                         check(db.execute("SELECT status FROM journal ORDER BY created DESC LIMIT 1").fetchone()["status"] == "failed", "predispatch denial does not create false uncertainty")
-                        settings=context.new_page()
-                        settings.goto("chrome-extension://" + extension_id() + "/options.html")
+                        with context.expect_page() as opened:
+                            page.get_by_role("button",name="Site permissions",exact=True).click()
+                        settings=opened.value
+                        settings.wait_for_url("chrome-extension://" + extension_id() + "/options.html")
+                        settings.locator("#rule-form").wait_for()
+                        check(True,"Site permissions button opens the actual settings page")
                         settings.locator("#origin").fill(url.rstrip("/"))
                         settings.get_by_role("button",name="Save website").click()
                         settings.wait_for_function("()=>document.querySelector('#saved').textContent.startsWith('Saved.')",timeout=10000)
@@ -208,6 +212,25 @@ def run(output, executable=None):
                     raise
                 finally:
                     context.close()
+                legacy=temp/"legacy-extension";shutil.copytree(ext,legacy)
+                legacy_manifest=json.loads((legacy/"manifest.json").read_text())
+                legacy_manifest["permissions"]=["nativeMessaging","storage","debugger","tabs"]
+                legacy_manifest.pop("optional_host_permissions",None)
+                legacy_manifest.pop("options_ui",None)
+                (legacy/"manifest.json").write_text(json.dumps(legacy_manifest))
+                old_options={**options,"args":["--disable-extensions-except="+str(legacy),"--load-extension="+str(legacy)]}
+                stale=pw.chromium.launch_persistent_context(str(temp/"legacy-profile"),**old_options)
+                try:
+                    old_popup=stale.pages[0];old_popup.goto("chrome-extension://"+extension_id()+"/popup.html")
+                    old_popup.get_by_text("Reload this extension",exact=False).wait_for()
+                    check(old_popup.locator("#toggle").is_disabled(),"stale manifest refuses Connect with an explicit reload explanation")
+                    with stale.expect_page() as opened:
+                        old_popup.get_by_role("button",name="Site permissions",exact=True).click()
+                    old_settings=opened.value;old_settings.wait_for_url("chrome-extension://"+extension_id()+"/options.html")
+                    old_settings.get_by_text("Reload this extension",exact=False).wait_for()
+                    check(old_settings.get_by_role("button",name="Save website").is_disabled(),"settings opens without cached options_ui and requires reload before granting sites")
+                    old_settings.screenshot(path=str(output/"stale-manifest-settings.png"))
+                finally:stale.close()
         finally:
             server.shutdown()
             for registration in registrations:

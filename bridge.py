@@ -36,6 +36,7 @@ def connect(state=DEFAULT_STATE):
     db = sqlite3.connect(str(path), timeout=5)
     os.chmod(path, 0o600)
     db.row_factory = sqlite3.Row
+    db.execute("PRAGMA secure_delete=ON")
     db.executescript("""
         CREATE TABLE IF NOT EXISTS sessions (
             id TEXT PRIMARY KEY, heartbeat REAL NOT NULL
@@ -62,6 +63,15 @@ def connect(state=DEFAULT_STATE):
             updated REAL NOT NULL, detail TEXT
         );
     """)
+    with db:
+        # Expired IPC bodies are discarded on any access, even after a crash.
+        db.execute("UPDATE journal SET status=CASE status WHEN 'sent' THEN 'unknown' ELSE 'cancelled' END, updated=? "
+                   "WHERE status IN ('pending','sent') AND id IN (SELECT id FROM requests WHERE expires<?)",
+                   (time.time(), time.time()))
+        db.execute("DELETE FROM requests WHERE expires<?", (time.time(),))
+        # Older versions kept arbitrary browser exception text in the journal.
+        db.execute("UPDATE journal SET detail='failure-detail-redacted' WHERE detail IS NOT NULL "
+                   "AND detail NOT IN ('command-failed','command-not-executed','failure-detail-redacted')")
     return db
 
 

@@ -10,10 +10,12 @@ Google authentication, Docs/Slides editors, Colab execution, extension-store rev
 
 ```bash
 python3 -m unittest discover -s tests -v
-node --test tests/background.test.cjs
+node --test tests/*.test.cjs
 python3 -m pip install playwright==1.58.0
 python3 -m playwright install chromium
 python3 tests/e2e.py --output /tmp/browser-bridge-evidence
 ```
 
 Use `--executable /path/to/chromium/browser` for another engine. Test native-host names are unique and removed afterward. Manual smoke: open Site permissions; save an exact HTTPS origin; accept/decline the browser prompt; inspect that rule; choose Ask and approve/deny one command; choose Block and confirm the site grant is removed.
+
+Version0.3.1 adds actual popup-to-settings clicking, stale-manifest gating (without options_ui), persistent UI error tests and native fatal-error privacy checks. Native/Python tests verify expired IPC cleanup, old journal-detail redaction and missing secret markers in the SQLite file; this does not simulate OS backups or guarantee forensic erasure. The native installer’s supported/tested platform remains macOS.

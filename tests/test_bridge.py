@@ -203,6 +203,7 @@ class BridgeTests(unittest.TestCase):
             denied_client.join(timeout=4)
             self.assertIsInstance(outcomes.get(timeout=1)[1], RuntimeError)
             self.assertEqual(self.db.execute("SELECT status FROM journal WHERE id='denied-site'").fetchone()[0], "failed")
+            self.assertEqual(self.db.execute("SELECT detail FROM journal WHERE id='denied-site'").fetchone()[0], "command-not-executed")
             host.stdin.close()
             host.wait(timeout=5)
             self.assertEqual(host.returncode, 0, host.stderr.read().decode())
@@ -257,6 +258,55 @@ class BridgeTests(unittest.TestCase):
         with self.assertRaisesRegex(RuntimeError, "already recorded"):
             request({"action": "tabs"}, self.state, agent="agent-a", request_id="op")
         self.assertIsNotNone(self.db.execute("SELECT id FROM requests WHERE id='op'").fetchone())
+
+
+class PrivacyTests(unittest.TestCase):
+    def test_expired_payload_and_legacy_error_are_removed_on_next_access(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            state=Path(tmp)/"private-state"
+            db=connect(state);marker="PRIVATE-CONTENT-THAT-MUST-NOT-REMAIN-839274"
+            now=time.time()
+            with db:
+                db.execute("INSERT INTO journal VALUES ('op','c','e','s','task',NULL,'type','sent',?,?,?)",(now,now,marker))
+                db.execute("INSERT INTO requests VALUES ('op','s',?,'sent',?,?)",(now-1,json.dumps({"text":marker}),marker))
+            db.close();db=connect(state)
+            self.assertEqual(db.execute("PRAGMA secure_delete").fetchone()[0],1)
+            self.assertEqual(db.execute("SELECT count(*) FROM requests").fetchone()[0],0)
+            row=db.execute("SELECT status,detail FROM journal WHERE id='op'").fetchone()
+            self.assertEqual(tuple(row),("unknown","failure-detail-redacted"))
+            db.close()
+            self.assertNotIn(marker.encode(),(state/"bridge.sqlite3").read_bytes())
+
+    def test_dispatch_failure_exits_without_raw_thread_traceback(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            state=Path(tmp)/"private-state"
+            db=connect(state)
+            with db:
+                db.execute("DROP TABLE sessions")
+                db.execute("CREATE VIEW sessions AS SELECT 'unused' AS id, 0 AS heartbeat")
+            db.close()
+            host=subprocess.Popen([sys.executable,str(ROOT/"native_host.py"),"--state-dir",str(state),"chrome-extension://"+extension_id()+"/"],
+                                  stdin=subprocess.PIPE,stdout=subprocess.PIPE,stderr=subprocess.PIPE)
+            try:
+                self.assertEqual(read_message(host.stdout)["type"],"connected")
+                write_message(host.stdin,{"type":"identify","connection":"b_failure","epoch":"epoch"})
+                host.wait(timeout=5)
+                error=host.stderr.read()
+                self.assertEqual(host.returncode,1)
+                self.assertIn(b"Native worker stopped: OperationalError",error)
+                self.assertNotIn(b"Traceback",error)
+                self.assertNotIn(str(ROOT).encode(),error)
+            finally:
+                if host.poll() is None:host.kill();host.wait(timeout=5)
+                for stream in [host.stdin,host.stdout,host.stderr]:stream.close()
+
+    def test_native_startup_log_omits_raw_input_error(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            host=subprocess.run([sys.executable,str(ROOT/"native_host.py"),"--state-dir",tmp,"chrome-extension://"+extension_id()+"/"],
+                                input=struct.pack("=I",7)+b"INVALID",capture_output=True,timeout=5)
+            self.assertEqual(host.returncode,1)
+            self.assertIn(b"JSONDecodeError",host.stderr)
+            self.assertNotIn(b"INVALID",host.stderr)
 
 
 if __name__ == "__main__":
