@@ -1,15 +1,19 @@
-:root { color-scheme: light; font: 14px/1.5 system-ui, sans-serif; color: #17212d; background: #f8fafc; }
-body { width: 330px; padding: 22px; margin: 0; }
-.eyebrow { font-size: 10px; font-weight: 700; letter-spacing: .12em; color: #526479; margin: 0 0 8px; }
-h1 { font-size: 22px; line-height: 1.2; margin: 0 0 16px; }
-p { margin: 12px 0; }
-#status { font-weight: 650; }
-button { width: 100%; border: 0; border-radius: 7px; padding: 12px; background: #1456c0; color: white; font: inherit; font-weight: 650; cursor: pointer; }
-button:disabled { opacity: .6; cursor: wait; }
-button.disconnect { background: #922d2d; }
-button:focus-visible { outline: 3px solid #75abfb; outline-offset: 3px; }
-dl { font-size: 12px; margin: 18px 0; }
-dt { color: #526479; margin-top: 8px; }
-dd { margin: 0; overflow-wrap: anywhere; }
-#error { color: #a21f2e; font-size: 12px; white-space: pre-wrap; }
-.footnote { font-size: 11px; color: #526479; }
+:root { color-scheme:light; font:18px/1.5 system-ui,sans-serif; color:#17212d; background:#f8fafc; }
+* {box-sizing:border-box} body {margin:0;font:inherit} body.popup {width:390px; padding:22px}
+h1 {font-size:28px;line-height:1.2;margin:0 0 16px} h2 {font-size:21px;margin:0 0 12px}
+p {margin:12px 0} .eyebrow {font-size:14px;font-weight:700;letter-spacing:.08em;color:#526479;margin:0 0 8px}
+button,input,select {font:inherit;min-height:48px;border-radius:7px;padding:10px 12px}
+button {border:1px solid transparent;background:#1456c0;color:white;font-weight:650;cursor:pointer}
+.popup>button {width:100%;margin-bottom:10px}.secondary {background:white;border-color:#8b9bb0;color:#17212d}
+button:disabled {opacity:.6;cursor:wait} button.disconnect {background:#922d2d}
+:focus-visible {outline:3px solid #75abfb;outline-offset:3px}
+dl,.footnote,#error,.hint {font-size:16px} dl {margin:16px 0} dt {color:#526479;margin-top:8px} dd {margin:0;overflow-wrap:anywhere}
+#error {color:#a21f2e;white-space:pre-wrap} .footnote,.hint {color:#526479}
+#approval {border:1px solid #ba8428;background:#fffaf0;border-radius:8px;padding:14px;margin:12px 0}
+#approval-summary {font-size:16px;overflow-wrap:anywhere} pre {font:16px/1.45 ui-monospace,monospace;white-space:pre-wrap;overflow-wrap:anywhere;max-height:120px;overflow:auto;margin:8px 0 12px}
+.actions {display:flex;gap:10px}.actions button {flex:1}
+.settings {max-width:1184px;padding:32px;margin:auto}.settings-grid {display:grid;grid-template-columns:minmax(0,1.25fr) minmax(0,1fr);gap:32px}.panel {background:white;border:1px solid #cbd5e1;padding:20px;border-radius:8px;min-width:0}
+form {display:grid;grid-template-columns:minmax(0,1fr) auto;gap:12px} form label:first-child {grid-column:1/-1} label {display:block} input,select {width:100%;border:1px solid #8b9bb0;background:white;color:inherit;margin-top:4px}
+.rules {margin-top:20px;max-height:380px;overflow:auto}.rule {display:flex;justify-content:space-between;gap:16px;width:100%;text-align:left;background:white;color:#17212d;border:0;border-bottom:1px solid #dce2ea;border-radius:0;font-size:16px}.rule span {overflow-wrap:anywhere}.mode {white-space:nowrap;font-weight:650}
+.suggestions {font-size:16px}.suggestions p {margin:12px 0}.notice {margin-top:20px;font-size:16px} [hidden] {display:none!important}
+@media(max-width:650px) {.settings{padding:20px}.settings-grid{grid-template-columns:1fr;gap:20px} form{grid-template-columns:1fr} form label:first-child{grid-column:auto}}

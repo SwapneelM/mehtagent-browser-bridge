@@ -18,3 +18,19 @@ Validation: 15 Python tests and 9 Node tests passed. The real extension/native-h
 | [Playwright extension tests](https://playwright.dev/python/docs/chrome-extensions) | 2026-10-21 | Headless Chromium with an isolated persistent test profile. |
 
 The shipped tests include the timeout/late-error/queued-write regression and the actual extension/native-host E2E runner. Both suites and the public-source scan passed before the initial release commits.
+
+## 2026-10-21: version 0.3.0, explicit site grants
+
+Larger rendered text (18px body,16px supporting copy,28px heading) and a full Site permissions page replace the small popup-only controls. Exact origins start blocked and require user-initiated Chromium grants. Allow, Ask every command, and Block rules persist locally. Each approval is tied to the command, agent, tab, source/destination and deadline, and is never reused.
+
+The production manifest removes debugger, tabs, and activeTab. Fixed isolated-world scripts access only the top document of granted hosts. Raw eval/CDP, trusted keys and screenshots are disabled; DOM editors can require manual input. Upload payloads are bounded to500KB. Protected host/path and card/password form checks add defense but cannot classify every sensitive workflow. Page access is not a website network firewall.
+
+Files: extension/policy.js (validation); extension/options.html and options.js (user grants/rules); extension/approval.js (full-command approval display); extension/background.js (fixed commands, gates, expiry and navigation checks); manifest/popup files (reduced permissions and typography); browser.py (bounded uploads); native_host.py (trusted pre-execution-denial outcome); tests and agent/plugin docs updated together.
+
+Validation: Python15 and Node20 pass. Real extension/native-host E2E35 checks pass in Playwright Chromium and another35 in Brave, in isolated synthetic localhost profiles. Checks include actual DOM form overrides, nested submit targets, external form associations, rejection of card-form reads, approval isolation, rendered18px text and390px layout. An independent review reproduced nine gaps; fixes and regression checks cover them, with no remaining demonstrated blocker.
+
+The native optional-host consent dialog remains a manual smoke check: the headless test copy alone receives a required127.0.0.1 grant. Production starts with no site grants. Signed-in Google editors and Colab execution remain unverified. Earlier0.2 debugger/screenshot evidence is historical and does not describe0.3 capabilities.
+
+Design mechanics referenced: dribbble-27507082-risk-tag-as-segment-strip (aligned rows), mkdocs-sortable-data-table (contained scrolling), mkdocs-clamped-tooltip (viewport-bound details). Private design/read/review artifacts remain outside this public repository.
+
+Primary references verified2026-10-21: [Chromium extension security FAQ](https://chromium.googlesource.com/chromium/src/+/main/extensions/docs/security_faq.md) (debugger can sidestep host restrictions), [optional permissions](https://developer.chrome.com/docs/extensions/reference/api/permissions), [fixed scripting and host grants](https://developer.chrome.com/docs/extensions/reference/api/scripting), [tabs metadata permissions](https://developer.chrome.com/docs/extensions/reference/api/tabs).

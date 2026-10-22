@@ -81,7 +81,7 @@ def serve(state):
         # A browser-side failure can follow a partial action (e.g. the page
         # navigated but the load check failed, or typing cleared an input first).
         readonly = record["action"] in ("tabs", "current", "read", "screenshot", "claim")
-        status = "completed" if msg.get("ok") else ("unknown" if record["status"] in ("sent", "unknown") and not readonly else "failed")
+        status = "completed" if msg.get("ok") else ("unknown" if record["status"] in ("sent", "unknown") and not readonly and not msg.get("not_run") else "failed")
         if record["status"] == "resolved-completed":
             status = record["status"]
         elif record["status"] == "resolved-not-run":

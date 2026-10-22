@@ -1,6 +1,6 @@
 {
   "name": "mehtagent-browser-bridge",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Control the user's connected Chromium profile with agent-owned tabs and interruption recovery.",
   "author": { "name": "Mehtagent contributors" },
   "license": "MIT",

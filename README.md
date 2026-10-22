@@ -1,6 +1,6 @@
 # Mehtagent Browser Bridge
 
-Let your agent work in the browser profile you already use. Open a tab, read a page, click, type, upload a file, and take screenshots through a local Chromium extension. Chrome and Brave use the same extension and native host.
+Let your agent work in the browser profile you already use. Open a tab, read a page, click, type, and upload a small file through a local Chromium extension. Chrome and Brave use the same extension and native host.
 
 Each profile has a persistent connection ID. Each agent reserves its own tabs. A recovery journal survives agent exits and browser reconnects, and uncertain actions are never replayed automatically.
 
@@ -20,11 +20,32 @@ Then, in the **browser profile you want the agent to use**:
 
 1. Open `chrome://extensions` in Chrome or `brave://extensions` in Brave.
 2. Enable **Developer mode**, click **Load unpacked**, and select this repository's `extension` folder.
-3. Open **Local Browser Bridge** from the extensions menu, optionally pin it, and click **Connect**. The badge shows **ON** when the native host is ready.
+3. Open **Local Browser Bridge**, choose **Site permissions**, and enter an exact website origin with Allow or Ask every command. Accept the browser’s site-consent prompt. No sites are granted initially.
+4. Click **Connect**. The badge shows **ON** when the native host is ready; **ASK** means a command needs your decision in the popup or Site permissions page.
 
 The browser extension must be loaded manually. Installing the agent plugin does not grant browser access by itself. The Chrome Web Store release is pending; use this repository or the [release download](https://github.com/SwapneelM/mehtagent-browser-bridge/releases/latest).
 
 Keep the extension folder in place. To update, pull this repository, rerun `python3 install.py`, reload the extension, and click Connect. Its ID stays the same; a second installation is unnecessary. An extension reload invalidates old tab targets, so list and reserve the intended tabs again afterward.
+
+## Site permissions
+
+Version 0.3 removes the broad debugger and tabs permissions. The production manifest has no required website hosts, no activeTab shortcut, and no arbitrary script/CDP escape hatch. Chromium enforces host grants for the fixed top-document script. Only the extension UI can edit site rules or approve commands; agents cannot grant sites through the native bridge.
+
+| Setting | Behavior | Suggested hosts |
+|---|---|---|
+| Allow | Fixed commands run on this exact origin while connected. | `https://www.google.com`, `https://drive.google.com`, `https://docs.google.com` (Docs, Sheets, Slides). |
+| Ask every command | One approval per command, agent and tab, expiring at the caller deadline. Read/claim/current also ask. | `https://mail.google.com`, `https://calendar.google.com`, `https://github.com`, `https://colab.research.google.com`. |
+| Block | No bridge page access. All unlisted origins start here. | Banking, payment services, billing, login and account-security pages. |
+
+Suggestions grant nothing. Add each origin yourself; subdomains are separate. Chromium’s host grant covers all ports on that host, while the bridge additionally enforces the exact scheme/host/port origin. HTTPS is required except for localhost testing. A wildcard grant is never requested by the UI. Setting Block revokes the optional host grant when no other allowed origin uses it.
+
+Bank/payment hosts on the built-in list, payment/login URL paths, and detected password/card forms are additionally denied. This detection is incomplete and cannot identify every bank or payment workflow; do not grant sensitive origins. Host permission cannot distinguish searching from sharing, deleting, sending, publishing or running code. Use Ask when you want every such command reviewed, including on Workspace hosts.
+
+The full command and destination are inspectable before approval. Upload approvals show filenames and digests; binary data is not displayed. Denied or expired approvals never grant a reusable token. Bulk tab listings hide blocked and Ask sites; focus the intended Ask tab and use `current` or request a new tab. A redirect to an Ask site requires a new approval before returning its metadata. Website-generated requests, redirects and actions retain normal website behavior: this extension is a page-access gate, not a network firewall. No top-document command can instrument a cross-origin iframe.
+
+For approvals, keep the popup or Site permissions page open and give yourself time with `--timeout 120`. A policy edit or disconnect cancels a waiting approval. An action already submitted to the browser may still finish. The page checks its URL and command deadline again before running.
+
+This version disables **eval, raw CDP, trusted keyboard shortcuts and screenshots**. DOM click/type events may be ignored by complex editors. File uploads are capped at 500 KB total per command. Those capability limits preserve the site boundary; Google editors and Colab still need real signed-in validation.
 
 ## Give each agent its own tabs
 
@@ -32,7 +53,7 @@ Keep the extension folder in place. To update, pull this repository, rerun `pyth
 python3 browser.py status
 python3 browser.py --connection BROWSER_ID tabs
 python3 browser.py --connection BROWSER_ID current
-python3 browser.py --connection BROWSER_ID --agent TASK_ID open https://example.com/
+python3 browser.py --connection BROWSER_ID --agent TASK_ID open https://www.google.com/
 ```
 
 Replace `BROWSER_ID` with a `b_…` ID from status. Choose a unique, stable `TASK_ID` for this agent's task and save both IDs in your task notes. Multiple profiles are never selected by browser preference or guessed from the URL.
@@ -48,15 +69,11 @@ Use the returned **target ID** for page actions:
 ```bash
 python3 browser.py --agent TASK_ID read TARGET_ID
 python3 browser.py --agent TASK_ID activate TARGET_ID
-python3 browser.py --agent TASK_ID navigate TARGET_ID https://example.org/
+python3 browser.py --agent TASK_ID navigate TARGET_ID https://www.google.com/search?q=example
 python3 browser.py --agent TASK_ID type TARGET_ID '#query' 'image search'
 python3 browser.py --agent TASK_ID click TARGET_ID '#submit'
-python3 browser.py --agent TASK_ID key TARGET_ID Enter
 python3 browser.py --agent TASK_ID scroll TARGET_ID 600
-python3 browser.py --agent TASK_ID screenshot TARGET_ID /tmp/page.png --full-page
 python3 browser.py --agent TASK_ID upload TARGET_ID 'input[type=file]' ./report.pdf
-python3 browser.py --agent TASK_ID eval TARGET_ID 'document.title'
-python3 browser.py --agent TASK_ID cdp TARGET_ID Accessibility.getFullAXTree
 python3 browser.py --agent TASK_ID release TARGET_ID
 ```
 
@@ -74,7 +91,7 @@ python3 browser.py --agent TASK_ID recover
 
 Recovery lists owned targets and recent operation IDs and outcomes. A native-host reconnect preserves profile and target identity. A browser restart or extension reload changes its runtime epoch: old targets fail and must be reserved again from the current tab list.
 
-An operation can be `completed`, `failed`, `cancelled`, or `unknown`. Unknown means the browser may have performed some or all of the action. Read the page or take a screenshot, then record what you found:
+An operation can be `completed`, `failed`, `cancelled`, or `unknown`. Unknown means the browser may have performed some or all of the action. Read the page or inspect it manually, then record what you found:
 
 ```bash
 python3 browser.py --agent TASK_ID read TARGET_ID
@@ -87,17 +104,17 @@ Further writes to that tab are blocked while an unknown action remains unresolve
 
 ## Page controls
 
-`read` returns page text, visible interactive elements with CSS selectors, and iframe URLs. Click and type require exactly one visible match and reject covered targets. `type` replaces contents; `--append` preserves them. Keyboard modifier bits: Alt=1, Ctrl=2, Meta/Command=4, Shift=8. Replacement typing uses the operating system's appropriate modifier.
+`read` returns page text and visible interactive elements with CSS selectors and bounded text-field values. Click and type require exactly one visible match and reject covered targets. `type` replaces contents; `--append` preserves them. Cross-site links and forms require an explicit open/navigate command so the destination can be checked. Direct protected payment/login links and forms are refused.
 
-Text and selectors describe the top document. Embedded editors and cross-origin frames may need `cdp` with explicit execution contexts or child sessions. Browser internal pages, extension pages, and private browsing are excluded. Sign-in and consent can still need your interaction.
+Text and selectors describe the top document. Embedded frames, browser internal pages, extension pages, private browsing and sensitive forms are excluded. Sign-in and consent require your manual interaction. The extension never reads cookies or browser passwords.
 
 ## Local access and storage
 
-Connect grants your local agent broad control of this profile's non-private website tabs, including signed-in pages and uploads. The browser displays its debugging indicator on instrumented tabs. **Disconnect** stops new commands and releases debugging; an action already dispatched may still finish. Connections do not start automatically when the browser restarts.
+Connect enables fixed commands only on the sites you explicitly granted, using those pages’ signed-in accounts. **Disconnect** stops new commands; an action already dispatched may still finish. Connections do not start automatically when the browser restarts.
 
 The browser starts Python over native messaging stdin/stdout. There is no listening HTTP port, cloud service, or webpage message endpoint. The manifest allows this extension's fixed ID. Other processes running as your OS user can access the bridge; ownership coordinates trusted agents and is not a boundary against local malware.
 
-On macOS, runtime and persistent state live under `~/Library/Application Support/LocalBrowserBridge/`. The SQLite journal records only operation metadata, ownership, and outcomes. Temporary payloads are removed after completion, timeout, or expiry. Screenshots are saved to the requested path. Your agent's own tool logs are outside the extension's control.
+On macOS, runtime and persistent state live under `~/Library/Application Support/LocalBrowserBridge/`. The SQLite journal records only operation metadata, ownership, and outcomes. Temporary payloads are removed after completion, timeout, or expiry. Site rules persist in extension-local storage; pending approvals do not persist or replay. Your agent's own tool logs are outside the extension's control.
 
 Chrome and Brave both look for the native-host manifest under `~/Library/Application Support/Google/Chrome/NativeMessagingHosts/`. Runtime files live outside Documents because macOS can deny browser-launched helpers access there. Startup errors go to `~/Library/Application Support/LocalBrowserBridge/native-host.log`. A sandboxed assistant needs filesystem access to the state directory; the local bridge itself needs no network connection.
 

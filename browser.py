@@ -3,6 +3,8 @@
 import argparse
 import base64
 import json
+import mimetypes
+import hashlib
 from pathlib import Path
 import sys
 import time
@@ -19,6 +21,16 @@ def request(command, state=DEFAULT_STATE, session=None, timeout=30, agent=None,
     try:
         command = dict(command)
         action = command["action"]
+        if action == "upload":
+            files = []; total = 0
+            for value in command.get("files", []):
+                path = Path(value).expanduser().resolve(strict=True)
+                if not path.is_file() or path.stat().st_size > 500000:
+                    raise ValueError("Upload supports regular files up to 500 KB total")
+                data = path.read_bytes(); total += len(data)
+                if total > 500000: raise ValueError("Upload supports up to 500 KB total")
+                files.append({"name": path.name, "type": mimetypes.guess_type(path.name)[0] or "application/octet-stream", "sha256": hashlib.sha256(data).hexdigest(), "data": base64.b64encode(data).decode()})
+            command["files"] = files
         if action not in ("tabs", "current") and not agent:
             raise ValueError("Use an explicit --agent ID for tab ownership and recovery")
         target = None

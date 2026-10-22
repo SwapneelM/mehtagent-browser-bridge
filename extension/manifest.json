@@ -1,15 +1,14 @@
 {
   "manifest_version": 3,
   "name": "Local Browser Bridge",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Let your local assistant act in this browser profile while you keep control.",
   "minimum_chrome_version": "118",
   "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAvaxM0RJ7QYnsPelj7L3QWxD4T0UHC8H07RKIXXj8dYAEponZMMPFVto2rE0Nmh6f2mLKEVco+P4ue35IhIswUkFIUy5QbdmoX/8G6oIVbd+xKfGZQS83HJMlbeaMqTJ3FiJcs+7D0nI0Buzps+eGngo9A7/z7L61ZWbA0iDRVFWaKPKuFI7RPp14Xv0sZ2j7tKvxaEQcENZ/GJQb+39+0eiAKl2tAgibGRoT4wKeZsDNX76bvFPeHfTWxWqVTaQ2bZUB7ut9UJ5aSFQLt+twB+tqo9UFxfb6jDyJhMeUulrZKYMG6YMJ3gDy7wQO71V8t193/FSt7xekzdFaOUtfoQIDAQAB",
   "permissions": [
     "nativeMessaging",
-    "debugger",
-    "tabs",
-    "storage"
+    "storage",
+    "scripting"
   ],
   "background": {
     "service_worker": "background.js"
@@ -18,5 +17,14 @@
     "default_popup": "popup.html",
     "default_title": "Local Browser Bridge"
   },
-  "incognito": "not_allowed"
+  "incognito": "not_allowed",
+  "optional_host_permissions": [
+    "https://*/*",
+    "http://localhost/*",
+    "http://127.0.0.1/*"
+  ],
+  "options_ui": {
+    "page": "options.html",
+    "open_in_tab": true
+  }
 }

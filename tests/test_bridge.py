@@ -191,6 +191,18 @@ class BridgeTests(unittest.TestCase):
             self.assertIn("uncertain", str(results["late-second"]))
             self.assertTrue(incoming.empty(), "Second write was sent to the browser")
             self.assertEqual(self.db.execute("SELECT status FROM journal WHERE id='late-first'").fetchone()[0], "unknown")
+            # A trusted pre-execution denial has a known no-effect outcome.
+            # Reconcile the deliberately partial failure before the next case.
+            with self.db:
+                self.db.execute("UPDATE journal SET status='resolved-not-run' WHERE id='late-first'")
+            denied_client = threading.Thread(target=click_request, args=("denied-site", 3))
+            denied_client.start()
+            denied_message = incoming.get(timeout=3)
+            write_message(host.stdin, {"type":"response", "id":denied_message["id"], "ok":False,
+                                      "not_run":True, "error":"Site permission denied before execution"})
+            denied_client.join(timeout=4)
+            self.assertIsInstance(outcomes.get(timeout=1)[1], RuntimeError)
+            self.assertEqual(self.db.execute("SELECT status FROM journal WHERE id='denied-site'").fetchone()[0], "failed")
             host.stdin.close()
             host.wait(timeout=5)
             self.assertEqual(host.returncode, 0, host.stderr.read().decode())

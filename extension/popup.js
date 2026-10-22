@@ -4,6 +4,7 @@ const toggle = document.querySelector("#toggle");
 
 function render(state) {
   connected = state.connected;
+  renderApproval(state);
   document.querySelector("#status").textContent = connected ? "Connected to your assistant" : state.connecting ? "Connecting…" : "Disconnected";
   document.querySelector("#session").textContent = state.connectionId || "—";
   document.querySelector("#action").textContent = state.lastAction || "—";
@@ -28,3 +29,5 @@ toggle.addEventListener("click", async () => {
 });
 void update();
 setInterval(() => { if (!busy) void update(); }, 600);
+
+document.querySelector("#settings").addEventListener("click",()=>chrome.runtime.openOptionsPage());
