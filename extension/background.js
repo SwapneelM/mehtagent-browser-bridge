@@ -74,7 +74,7 @@ async function policyState() {
   for(const [origin,mode] of Object.entries(cached.siteRules || {})) {
     if(mode!=="block" && !await chrome.permissions.contains({origins:[SitePolicy.entry(origin,mode).pattern]})) missing.push(origin);
   }
-  return {...status(),rules:cached.siteRules || {},preferences:cached.preferences || SitePolicy.defaults,
+  return {...status(),settingsVersion:1,rules:cached.siteRules || {},preferences:cached.preferences || SitePolicy.defaults,
     policy:cached.sharedPolicy || {path:sharedPolicy.path,revision:null,policy:null},missing};
 }
 

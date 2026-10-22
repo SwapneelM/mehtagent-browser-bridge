@@ -178,3 +178,13 @@ The extension uses Chromium APIs and has no browser-brand or personal-path assum
 There is no telemetry or remote logging service in the bridge. Native startup logs contain exception type codes, not raw request bodies or exception messages. Live CLI/tool responses necessarily contain requested page data. Your agent provider, shell history, conversation logs, browser profiles and OS backups are separate systems; this extension cannot guarantee they retain no sensitive information. Treat the state directory as sensitive while commands run.
 
 If updated popup files load with an older cached manifest, Connect/site-grant actions show a Reload explanation. Site permissions opens an extension tab directly, so it does not depend on cached options_ui. A failed button action stays visible instead of being erased by status polling.
+
+## Updating the Site access page
+
+After updating an unpacked extension, open your browser’s Extensions page and press **Reload** on Local Browser Bridge, then **Connect**. Do this once in each browser profile you use. Your saved site choices are preserved.
+
+Version0.4.1 keeps the saved-site list readable when a new settings page encounters an older running worker. Changes stay disabled until the versions match. A failed save returns controls to the last confirmed values and shows an error instead of a success message.
+
+Example: to let an agent test Mehtagent Lite, add `http://127.0.0.1:4480` under Site access and choose Allow. Enterprise uses `http://127.0.0.1:4477`. Each exact origin has its own choice. The agent cannot grant these permissions for you.
+
+If an established shared policy file is deleted or malformed, restore a valid copy at the displayed path and reconnect. Import does not currently repair those cases; the bridge keeps access closed and preserves existing data.

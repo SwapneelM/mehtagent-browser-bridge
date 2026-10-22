@@ -1,0 +1,7 @@
+# Settings state compatibility fix
+
+A newly loaded options page can talk to an older still-running background worker after an unpacked-extension update. The worker reply can contain site rules but no preferences/policy readiness. Existing options tests stub draw() and miss this rendering crash.
+
+Reproduce the legacy reply with the actual page/scripts in an isolated browser using only fictional localhost/example.com rules. Add an explicit settings-response version, validate/normalize replies for safe read-only display, preserve false preferences, disable changes before the worker is compatible, explain the single browser reload. Clear contradictory Saved status if refresh/draw fails and commit render signature only after successful draw. Do not change any user's site rules or grant permissions, do not reload the user's extension, do not alter the production disabled screenshot/eval/CDP boundary.
+
+Run full Python/Node regressions and isolated real extension/native-host E2E with existing pinned fixture dependencies. Capture synthetic settings visual evidence at1440 and390, including legacy, disconnected/missing policy and healthy states. Independently review source/tests before installing the minimal changed files into the existing loaded extension folder only if its source baseline is unchanged. Browser JavaScript update requires the user's one reload; restored live settings and app origins need a new check before closing delivery.
